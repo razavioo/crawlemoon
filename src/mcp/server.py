@@ -12,7 +12,7 @@ from mcp.server import Server
 from mcp.types import Tool, TextContent
 
 from ..core.browser.pool import BrowserPool
-from ..core.browser.stealth import create_stealth_context
+from ..core.browser.stealth import create_stealth_context, apply_stealth_to_page
 from ..core.browser.proxy_pool import ProxyPool, RotationStrategy
 from ..core.browser.cdp import CDPClient
 from ..core.rate_limiter import RateLimiter
@@ -76,7 +76,13 @@ js_analyzer = JSAnalyzer()
 js_deobfuscator = JSDeobfuscator()
 bot_detector = BotDetectionAnalyzer()
 content_extractor = get_content_extractor()
-smart_extractor = get_smart_extractor()
+# Smart extractor uses config for LLM settings (supports OpenRouter, Groq, Ollama, etc.)
+smart_extractor = get_smart_extractor(
+    api_key=config.llm_api_key,
+    model=config.llm_model,
+    base_url=config.llm_base_url,
+    provider=config.llm_provider,
+)
 technology_detector = get_technology_detector()
 recording_storage = RecordingStorage(storage_dir=config.recording_storage_dir)
 rate_limiter = RateLimiter()
@@ -113,6 +119,9 @@ async def browser_context_manager(url: Optional[str] = None):
     
     Args:
         url: Optional URL for proxy selection (sticky strategy)
+    
+    Note: Only closes the page, not the context. The browser pool manages
+    context lifecycle to enable reuse across requests.
     """
     context = None
     page = None
@@ -120,6 +129,10 @@ async def browser_context_manager(url: Optional[str] = None):
         context = await create_stealth_context(browser_pool, url=url)
         page = await context.new_page()
         page.set_default_timeout(config.navigation_timeout * 1000)  # Playwright uses milliseconds
+        
+        # Apply stealth patches to the page
+        await apply_stealth_to_page(context, page)
+        
         yield page
     finally:
         if page:
@@ -127,11 +140,8 @@ async def browser_context_manager(url: Optional[str] = None):
                 await page.close()
             except Exception as e:
                 logger.warning(f"Error closing page: {e}")
-        if context:
-            try:
-                await context.close()
-            except Exception as e:
-                logger.warning(f"Error closing context: {e}")
+        # Don't close the context - let the browser pool manage its lifecycle
+        # This allows context reuse and prevents "Target closed" errors
 
 
 @server.list_tools()
@@ -501,7 +511,7 @@ async def list_tools() -> List[Tool]:
         ),
         Tool(
             name="solve_captcha",
-            description="Detect and solve CAPTCHA on a webpage. Supports reCAPTCHA, hCaptcha, and Cloudflare Turnstile.",
+            description="Detect and solve CAPTCHA on a webpage. Supports reCAPTCHA, hCaptcha, and Cloudflare Turnstile. NOTE: Requires paid CAPTCHA solving service (ANTICAPTCHA_API_KEY or CAPSOLVER_API_KEY). Returns detection info if no solver configured.",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -535,7 +545,7 @@ async def list_tools() -> List[Tool]:
         ),
         Tool(
             name="smart_extract",
-            description="Extract data from a webpage using natural language queries. Uses LLM to generate selectors and extract structured data.",
+            description="Extract data from a webpage using natural language queries. Works without any paid API using pattern matching. Optionally enhanced by LLM if configured (supports OpenRouter, Groq, Ollama, and other OpenAI-compatible providers).",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -1490,6 +1500,7 @@ async def handle_record_session(arguments: Dict[str, Any]) -> Dict[str, Any]:
         context = await create_stealth_context(browser_pool, url=url)
         page = await context.new_page()
         page.set_default_timeout(config.navigation_timeout * 1000)
+        await apply_stealth_to_page(context, page)
         
         recorder = SessionRecorder()
         recording = await recorder.start_recording(page)
@@ -1550,10 +1561,9 @@ async def handle_stop_recording(arguments: Dict[str, Any]) -> Dict[str, Any]:
         if save or config.auto_save_recordings:
             file_path = recording_storage.save_recording(recording)
         
-        # Cleanup
+        # Cleanup - only close page, let pool manage context
         try:
             await page.close()
-            await context.close()
         except Exception as e:
             logger.warning(f"Error cleaning up recording {recording_id}: {e}")
         
@@ -2247,7 +2257,11 @@ async def handle_detect_technology(arguments: Dict[str, Any]) -> Dict[str, Any]:
 
 @with_retry(max_retries=config.max_retries, delay=config.retry_delay)
 async def handle_smart_extract(arguments: Dict[str, Any]) -> Dict[str, Any]:
-    """Handle smart_extract tool."""
+    """Handle smart_extract tool.
+    
+    Uses pattern-based extraction (free, no API required).
+    Optionally uses LLM for enhanced results if OpenAI API key is configured.
+    """
     url = arguments["url"]
     query = arguments["query"]
     
@@ -2264,31 +2278,25 @@ async def handle_smart_extract(arguments: Dict[str, Any]) -> Dict[str, Any]:
             
             html = await page.content()
             
-            # Smart extract
-            if smart_extractor:
-                result = smart_extractor.extract(html, query)
-                
-                return {
-                    "url": url,
-                    "query": query,
-                    "targets": [
-                        {
-                            "description": t.description,
-                            "selector_type": t.selector_type,
-                            "selector": t.selector,
-                        }
-                        for t in result.targets
-                    ],
-                    "extracted_data": result.extracted_data,
-                    "confidence": result.confidence,
-                    "timestamp": datetime.now().isoformat(),
-                }
-            else:
-                return {
-                    "error": "Smart extractor not available. Please configure OPENAI_API_KEY.",
-                    "url": url,
-                    "query": query,
-                }
+            # Smart extract using pattern-based extraction (always available)
+            result = smart_extractor.extract(html, query)
+            
+            return {
+                "url": url,
+                "query": query,
+                "targets": [
+                    {
+                        "description": t.description,
+                        "selector_type": t.selector_type,
+                        "selector": t.selector,
+                    }
+                    for t in result.targets
+                ],
+                "extracted_data": result.extracted_data,
+                "confidence": result.confidence,
+                "llm_enhanced": smart_extractor.llm_enabled,
+                "timestamp": datetime.now().isoformat(),
+            }
         
         except Exception as e:
             logger.error(f"Error in smart_extract for {url}: {e}", exc_info=True)
@@ -3162,6 +3170,7 @@ async def handle_execute_cdp(arguments: Dict[str, Any]) -> Dict[str, Any]:
         context = await create_stealth_context(browser_pool, url=url)
         page = await context.new_page()
         page.set_default_timeout(config.navigation_timeout * 1000)
+        await apply_stealth_to_page(context, page)
         
         wait_until = "networkidle" if config.wait_for_network_idle else "load"
         response = await page.goto(url, wait_until=wait_until, timeout=config.navigation_timeout * 1000)
@@ -3192,11 +3201,7 @@ async def handle_execute_cdp(arguments: Dict[str, Any]) -> Dict[str, Any]:
                 await page.close()
             except Exception:
                 pass
-        if context:
-            try:
-                await context.close()
-            except Exception:
-                pass
+        # Don't close context - let pool manage its lifecycle
 
 
 @with_retry(max_retries=config.max_retries, delay=config.retry_delay)
@@ -3213,6 +3218,7 @@ async def handle_get_dom_tree(arguments: Dict[str, Any]) -> Dict[str, Any]:
         context = await create_stealth_context(browser_pool, url=url)
         page = await context.new_page()
         page.set_default_timeout(config.navigation_timeout * 1000)
+        await apply_stealth_to_page(context, page)
         
         wait_until = "networkidle" if config.wait_for_network_idle else "load"
         response = await page.goto(url, wait_until=wait_until, timeout=config.navigation_timeout * 1000)
@@ -3242,11 +3248,7 @@ async def handle_get_dom_tree(arguments: Dict[str, Any]) -> Dict[str, Any]:
                 await page.close()
             except Exception:
                 pass
-        if context:
-            try:
-                await context.close()
-            except Exception:
-                pass
+        # Don't close context - let pool manage its lifecycle
 
 
 # ============================================================================

@@ -17,9 +17,11 @@ class CDPClient:
     async def connect(self) -> None:
         """Establish CDP session."""
         if not self._cdp_session:
-            self._cdp_session = await self.context.new_cdp_session(
-                await self.context.pages[0] if self.context.pages else None
-            )
+            # Get the first page if available (pages is a list, not async)
+            page = self.context.pages[0] if self.context.pages else None
+            if page is None:
+                raise RuntimeError("No pages available in context for CDP session")
+            self._cdp_session = await self.context.new_cdp_session(page)
             logger.info("CDP session established")
     
     async def send_command(self, method: str, params: Optional[Dict] = None) -> Any:
@@ -92,6 +94,9 @@ class CDPClient:
             # CDP session is closed automatically with context
             self._cdp_session = None
             logger.debug("CDP session closed")
+
+
+
 
 
 

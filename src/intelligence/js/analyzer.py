@@ -5,14 +5,14 @@ import logging
 from typing import List, Dict, Any, Optional, Set
 from dataclasses import dataclass, field
 
+logger = logging.getLogger(__name__)
+
 try:
     import esprima
     ESPRIMA_AVAILABLE = True
 except ImportError:
     ESPRIMA_AVAILABLE = False
-    logger.warning("esprima not available, falling back to regex-based analysis")
-
-logger = logging.getLogger(__name__)
+    logger.debug("esprima not available, falling back to regex-based analysis")
 
 
 @dataclass

@@ -303,19 +303,26 @@ async def test_tool_descriptions_enhanced():
 
 @pytest.mark.asyncio
 async def test_browser_context_manager_cleanup():
-    """Test that browser context manager properly cleans up."""
+    """Test that browser context manager properly cleans up.
+    
+    Note: The context manager only closes pages, not contexts.
+    Browser contexts are managed by the browser pool to enable reuse.
+    """
     from src.mcp.server import browser_context_manager
     
     with patch("src.mcp.server.create_stealth_context") as mock_create:
-        mock_context = AsyncMock()
-        mock_page = AsyncMock()
-        mock_context.new_page = AsyncMock(return_value=mock_page)
-        mock_create.return_value = mock_context
-        
-        async with browser_context_manager() as page:
-            assert page == mock_page
-        
-        # Should have closed page and context
-        mock_page.close.assert_called_once()
-        mock_context.close.assert_called_once()
+        with patch("src.mcp.server.apply_stealth_to_page") as mock_apply_stealth:
+            mock_context = AsyncMock()
+            mock_page = AsyncMock()
+            mock_context.new_page = AsyncMock(return_value=mock_page)
+            mock_create.return_value = mock_context
+            
+            async with browser_context_manager() as page:
+                assert page == mock_page
+            
+            # Should have closed page but NOT context (pool manages context lifecycle)
+            mock_page.close.assert_called_once()
+            mock_context.close.assert_not_called()
+            # Should have applied stealth patches to page
+            mock_apply_stealth.assert_called_once_with(mock_context, mock_page)
 

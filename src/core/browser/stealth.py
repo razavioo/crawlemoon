@@ -319,11 +319,23 @@ async def create_stealth_context(
     
     context = await pool.acquire(url=url, **context_options)
     
-    # Apply stealth to first page
-    page = await context.new_page()
-    await stealth.apply_stealth_patches(page)
+    # Store stealth instance on context for applying patches to pages later
+    context._stealth = stealth
+    context._stealth_applied = False
     
     return context
+
+
+async def apply_stealth_to_page(context: BrowserContext, page: Page) -> None:
+    """Apply stealth patches to a page if not already applied to context.
+    
+    Args:
+        context: Browser context (may have _stealth attribute)
+        page: Page to apply stealth patches to
+    """
+    if hasattr(context, '_stealth') and not getattr(context, '_stealth_applied', False):
+        await context._stealth.apply_stealth_patches(page)
+        context._stealth_applied = True
 
 
 

@@ -343,7 +343,7 @@ class SessionRecorder:
                     "bodySize": -1
                 },
                 "response": {
-                    "status": resp.status if resp else 0,
+                    "status": resp.data.get("status", 0) if resp and resp.data else 0,
                     "statusText": "",
                     "httpVersion": "HTTP/1.1",
                     "headers": [],

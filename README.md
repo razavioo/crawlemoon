@@ -83,103 +83,105 @@ Then add to your MCP configuration:
 
 ## 🛠️ Available Tools (55 Total)
 
+> **Test Status Legend:** ✅ Tested & Working | ⚠️ Works with limitations | 🔧 Requires config | 🆓 No paid API needed
+
 ### 🔍 Deep Analysis & Discovery
-| Tool | Description |
-|------|-------------|
-| `deep_analyze` | Comprehensive analysis of a website (network + JS + security) |
-| `discover_apis` | Discover all REST and GraphQL APIs including hidden endpoints |
-| `introspect_graphql` | Extract complete GraphQL schema using introspection |
-| `execute_graphql` | Execute GraphQL queries and mutations |
-| `analyze_websocket` | Intercept and analyze WebSocket connections |
-| `analyze_auth` | Analyze authentication flow and mechanisms |
-| `detect_protection` | Detect anti-bot systems, CAPTCHAs, and fingerprinting |
-| `detect_technology` | Detect technology stack (CMS, frameworks, CDN, analytics) |
+| Tool | Status | Description | Notes |
+|------|--------|-------------|-------|
+| `deep_analyze` | ✅ | Comprehensive analysis of a website (network + JS + security) | |
+| `discover_apis` | ✅ | Discover all REST and GraphQL APIs including hidden endpoints | |
+| `introspect_graphql` | ✅ | Extract complete GraphQL schema using introspection | |
+| `execute_graphql` | ✅ | Execute GraphQL queries and mutations | |
+| `analyze_websocket` | ✅ | Intercept and analyze WebSocket connections | Returns empty if no WS found |
+| `analyze_auth` | ✅ | Analyze authentication flow and mechanisms | |
+| `detect_protection` | ✅ | Detect anti-bot systems, CAPTCHAs, and fingerprinting | |
+| `detect_technology` | ✅ | Detect technology stack (CMS, frameworks, CDN, analytics) | |
 
 ### 📜 JavaScript Analysis
-| Tool | Description |
-|------|-------------|
-| `deobfuscate_js` | Deobfuscate JavaScript code with multiple techniques |
-| `extract_from_js` | Extract API endpoints, URLs, constants, and auth logic from JS |
+| Tool | Status | Description | Notes |
+|------|--------|-------------|-------|
+| `deobfuscate_js` | ✅ 🆓 | Deobfuscate JavaScript code with multiple techniques | No browser needed |
+| `extract_from_js` | ✅ 🆓 | Extract API endpoints, URLs, constants, and auth logic from JS | No browser needed |
 
 ### 🎬 Session Recording & Crawlers
-| Tool | Description |
-|------|-------------|
-| `record_session` | Start recording an interactive browser session |
-| `stop_recording` | Stop an active recording and save it |
-| `list_recordings` | List all available recordings (active and saved) |
-| `get_recording_status` | Get status and details of a specific recording |
-| `delete_recording` | Delete a saved recording |
-| `export_recording` | Export recording to JSON, HAR, or Playwright test format |
-| `generate_crawler` | Generate crawler script from recording (YAML, Python, Playwright) |
+| Tool | Status | Description | Notes |
+|------|--------|-------------|-------|
+| `record_session` | ✅ | Start recording an interactive browser session | |
+| `stop_recording` | ✅ | Stop an active recording and save it | |
+| `list_recordings` | ✅ | List all available recordings (active and saved) | |
+| `get_recording_status` | ✅ | Get status and details of a specific recording | |
+| `delete_recording` | ✅ | Delete a saved recording | |
+| `export_recording` | ✅ | Export recording to JSON, HAR, or Playwright test format | |
+| `generate_crawler` | ✅ | Generate crawler script from recording (YAML, Python, Playwright) | |
 
 ### 📄 Content Extraction
-| Tool | Description |
-|------|-------------|
-| `extract_article` | Extract clean article content with intelligent parsing |
-| `convert_to_markdown` | Convert webpage to clean markdown for LLM consumption |
-| `smart_extract` | Extract data using natural language queries (AI-powered) |
-| `extract_links` | Extract all links with filtering options |
-| `extract_forms` | Extract all forms with field details |
-| `extract_metadata` | Extract OG tags, Twitter cards, JSON-LD structured data |
-| `extract_tables` | Extract tables as JSON, CSV, or Markdown |
-| `wait_and_extract` | Wait for dynamic elements and extract content |
+| Tool | Status | Description | Notes |
+|------|--------|-------------|-------|
+| `extract_article` | ✅ | Extract clean article content with intelligent parsing | |
+| `convert_to_markdown` | ✅ | Convert webpage to clean markdown for LLM consumption | |
+| `smart_extract` | ✅ 🆓 | Extract data using natural language queries | Works without LLM; optionally enhanced with free providers |
+| `extract_links` | ✅ | Extract all links with filtering options | |
+| `extract_forms` | ✅ | Extract all forms with field details | |
+| `extract_metadata` | ✅ | Extract OG tags, Twitter cards, JSON-LD structured data | |
+| `extract_tables` | ✅ | Extract tables as JSON, CSV, or Markdown | |
+| `wait_and_extract` | ✅ | Wait for dynamic elements and extract content | |
 
 ### 🌐 Network & Sitemap
-| Tool | Description |
-|------|-------------|
-| `analyze_sitemap` | Analyze sitemap.xml to extract URLs and metadata |
-| `check_robots` | Analyze robots.txt for crawl rules and sitemaps |
-| `monitor_network` | Monitor network traffic for a specified duration |
+| Tool | Status | Description | Notes |
+|------|--------|-------------|-------|
+| `analyze_sitemap` | ✅ | Analyze sitemap.xml to extract URLs and metadata | |
+| `check_robots` | ✅ | Analyze robots.txt for crawl rules and sitemaps | |
+| `monitor_network` | ✅ | Monitor network traffic for a specified duration | |
 
 ### 🖥️ Page Interaction
-| Tool | Description |
-|------|-------------|
-| `take_screenshot` | Take full-page or viewport screenshots |
-| `execute_js` | Execute JavaScript on a page and return results |
-| `get_cookies` | Get all cookies from a page/domain |
-| `get_storage` | Get localStorage and sessionStorage |
-| `fill_form` | Automatically fill form fields with provided data |
+| Tool | Status | Description | Notes |
+|------|--------|-------------|-------|
+| `take_screenshot` | ✅ | Take full-page or viewport screenshots | |
+| `execute_js` | ✅ | Execute JavaScript on a page and return results | |
+| `get_cookies` | ✅ | Get all cookies from a page/domain | |
+| `get_storage` | ✅ | Get localStorage and sessionStorage | |
+| `fill_form` | ✅ | Automatically fill form fields with provided data | |
 
 ### 🔐 Session & Proxy Management
-| Tool | Description |
-|------|-------------|
-| `save_session` | Save browser session (cookies, storage) for reuse |
-| `load_session` | Load a previously saved session |
-| `list_sessions` | List all saved sessions |
-| `configure_proxies` | Configure proxy pool with rotation strategies |
-| `get_proxy_stats` | Get proxy pool health and usage statistics |
-| `add_proxy` | Add a proxy to the pool |
-| `remove_proxy` | Remove a proxy from the pool |
-| `test_proxy` | Test a proxy's connectivity |
+| Tool | Status | Description | Notes |
+|------|--------|-------------|-------|
+| `save_session` | ✅ | Save browser session (cookies, storage) for reuse | |
+| `load_session` | ✅ | Load a previously saved session | |
+| `list_sessions` | ✅ | List all saved sessions | |
+| `configure_proxies` | ✅ | Configure proxy pool with rotation strategies | |
+| `get_proxy_stats` | ✅ | Get proxy pool health and usage statistics | |
+| `add_proxy` | ✅ | Add a proxy to the pool | |
+| `remove_proxy` | ✅ | Remove a proxy from the pool | |
+| `test_proxy` | ✅ | Test a proxy's connectivity | |
 
 ### 📊 Performance & Analysis
-| Tool | Description |
-|------|-------------|
-| `measure_performance` | Measure page load timing and Core Web Vitals |
-| `analyze_resources` | Analyze all loaded resources (scripts, images, fonts) |
-| `check_accessibility` | Run accessibility checks and report issues |
-| `compare_pages` | Compare two pages for structure/content differences |
+| Tool | Status | Description | Notes |
+|------|--------|-------------|-------|
+| `measure_performance` | ✅ | Measure page load timing and Core Web Vitals | |
+| `analyze_resources` | ✅ | Analyze all loaded resources (scripts, images, fonts) | |
+| `check_accessibility` | ✅ | Run accessibility checks and report issues | |
+| `compare_pages` | ✅ | Compare two pages for structure/content differences | |
 
 ### 🛡️ Stealth & Anti-Detection
-| Tool | Description |
-|------|-------------|
-| `stealth_request` | Make HTTP requests with TLS fingerprint impersonation |
-| `solve_captcha` | Detect and solve CAPTCHAs (reCAPTCHA, hCaptcha, Turnstile) |
+| Tool | Status | Description | Notes |
+|------|--------|-------------|-------|
+| `stealth_request` | ✅ | Make HTTP requests with TLS fingerprint impersonation | |
+| `solve_captcha` | 🔧 | Detect and solve CAPTCHAs (reCAPTCHA, hCaptcha, Turnstile) | Requires ANTICAPTCHA_API_KEY or CAPSOLVER_API_KEY |
 
 ### ⚙️ Advanced (CDP & Cache)
-| Tool | Description |
-|------|-------------|
-| `execute_cdp` | Execute raw Chrome DevTools Protocol commands |
-| `get_dom_tree` | Get full DOM tree via CDP |
-| `clear_cache` | Clear cached pages, responses, or state snapshots |
-| `get_cache_stats` | Get cache statistics |
-| `configure_rate_limit` | Configure rate limiting per domain |
-| `get_rate_limit_stats` | Get rate limiter statistics |
+| Tool | Status | Description | Notes |
+|------|--------|-------------|-------|
+| `execute_cdp` | ✅ | Execute raw Chrome DevTools Protocol commands | |
+| `get_dom_tree` | ✅ | Get full DOM tree via CDP | |
+| `clear_cache` | ✅ | Clear cached pages, responses, or state snapshots | |
+| `get_cache_stats` | ✅ | Get cache statistics | |
+| `configure_rate_limit` | ✅ | Configure rate limiting per domain | |
+| `get_rate_limit_stats` | ✅ | Get rate limiter statistics | |
 
 ### 🔧 System
-| Tool | Description |
-|------|-------------|
-| `health_check` | Check health of server, browser pool, and storage |
+| Tool | Status | Description | Notes |
+|------|--------|-------------|-------|
+| `health_check` | ✅ | Check health of server, browser pool, and storage | |
 
 ---
 
@@ -214,10 +216,7 @@ Customize behavior with environment variables:
         "CRAWILFY_BROWSER": "chromium",
         "CRAWILFY_NAV_TIMEOUT": "30.0",
         "CRAWILFY_OP_TIMEOUT": "60.0",
-        "CRAWILFY_POOL_SIZE": "5",
-        "CRAWILFY_RATE_LIMIT_RPS": "1.0",
-        "CRAWILFY_PROXIES": "http://proxy1:8080,http://proxy2:8080",
-        "OPENAI_API_KEY": "sk-..."
+        "CRAWILFY_POOL_SIZE": "5"
       }
     }
   }
@@ -231,9 +230,89 @@ Customize behavior with environment variables:
 | `CRAWILFY_NAV_TIMEOUT` | Page load timeout (seconds) | `30.0` |
 | `CRAWILFY_OP_TIMEOUT` | Operation timeout (seconds) | `60.0` |
 | `CRAWILFY_POOL_SIZE` | Max browser instances | `5` |
-| `CRAWILFY_RATE_LIMIT_RPS` | Requests per second | `1.0` |
-| `CRAWILFY_PROXIES` | Comma-separated proxy URLs | - |
-| `OPENAI_API_KEY` | For AI-powered smart extraction | - |
+
+---
+
+## 🤖 AI-Powered Smart Extraction (Optional)
+
+The `smart_extract` tool works **without any paid API** using pattern matching. Optionally enable LLM enhancement for better accuracy with any **OpenAI-compatible API** - including FREE options!
+
+### Option 1: OpenRouter (Recommended - FREE Models Available!)
+
+```json
+{
+  "mcpServers": {
+    "crawilfy": {
+      "command": "uvx",
+      "args": ["crawilfy-mcp-server"],
+      "env": {
+        "CRAWILFY_LLM_PROVIDER": "openrouter",
+        "CRAWILFY_LLM_API_KEY": "sk-or-v1-your-key-here",
+        "CRAWILFY_LLM_MODEL": "meta-llama/llama-3.2-3b-instruct:free"
+      }
+    }
+  }
+}
+```
+
+**Free models:** `meta-llama/llama-3.2-3b-instruct:free`, `google/gemma-2-9b-it:free`, `qwen/qwen-2-7b-instruct:free`
+
+Get your API key at: [openrouter.ai/keys](https://openrouter.ai/keys)
+
+### Option 2: Groq (FREE Tier, Very Fast!)
+
+```json
+{
+  "env": {
+    "CRAWILFY_LLM_PROVIDER": "groq",
+    "CRAWILFY_LLM_API_KEY": "gsk_your-key-here",
+    "CRAWILFY_LLM_MODEL": "llama-3.1-8b-instant"
+  }
+}
+```
+
+Get your API key at: [console.groq.com/keys](https://console.groq.com/keys)
+
+### Option 3: Ollama (100% FREE - Runs Locally)
+
+```json
+{
+  "env": {
+    "CRAWILFY_LLM_PROVIDER": "ollama",
+    "CRAWILFY_LLM_MODEL": "llama3.2"
+  }
+}
+```
+
+Install Ollama from [ollama.ai](https://ollama.ai), then run: `ollama pull llama3.2`
+
+No API key needed!
+
+### Option 4: Any OpenAI-Compatible API
+
+For custom providers (Factory.ai, KiloCode, MegaLLM, etc.):
+
+```json
+{
+  "env": {
+    "CRAWILFY_LLM_BASE_URL": "https://your-api.com/v1",
+    "CRAWILFY_LLM_API_KEY": "your-api-key",
+    "CRAWILFY_LLM_MODEL": "your-model-name"
+  }
+}
+```
+
+### LLM Configuration Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `CRAWILFY_LLM_PROVIDER` | Provider shortcut: `openrouter`, `groq`, `ollama`, `together`, `deepseek`, `openai` | - |
+| `CRAWILFY_LLM_API_KEY` | API key for the provider (not needed for Ollama) | - |
+| `CRAWILFY_LLM_BASE_URL` | Custom API base URL (auto-set if using provider) | - |
+| `CRAWILFY_LLM_MODEL` | Model name (auto-selected per provider if not set) | varies |
+| `OPENAI_API_KEY` | Legacy: also works for OpenAI provider | - |
+
+See [llm-config-examples.env](llm-config-examples.env) for more examples.
 
 ---
 

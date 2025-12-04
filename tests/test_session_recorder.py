@@ -169,3 +169,6 @@ def test_event_type_enum():
     assert EventType.NAVIGATE.value == "navigate"
 
 
+
+
+

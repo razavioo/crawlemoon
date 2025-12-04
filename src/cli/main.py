@@ -7,7 +7,7 @@ import sys
 from typing import Optional
 
 from ..core.browser.pool import BrowserPool
-from ..core.browser.stealth import create_stealth_context
+from ..core.browser.stealth import create_stealth_context, apply_stealth_to_page
 from ..intelligence.network.interceptor import DeepNetworkInterceptor
 from ..intelligence.network.api_discovery import APIDiscoveryEngine
 from ..intelligence.recorder.session import SessionRecorder
@@ -26,6 +26,7 @@ async def deep_analyze(url: str, full: bool = False):
     try:
         context = await create_stealth_context(pool)
         page = await context.new_page()
+        await apply_stealth_to_page(context, page)
         
         interceptor = DeepNetworkInterceptor()
         await interceptor.start_intercepting(page)
@@ -45,7 +46,6 @@ async def deep_analyze(url: str, full: bool = False):
         print(f"  Network requests: {len(requests)}")
         
         await page.close()
-        await context.close()
     
     finally:
         await pool.close()
@@ -61,6 +61,7 @@ async def discover_apis(url: str, include_hidden: bool = False):
     try:
         context = await create_stealth_context(pool)
         page = await context.new_page()
+        await apply_stealth_to_page(context, page)
         
         interceptor = DeepNetworkInterceptor()
         await interceptor.start_intercepting(page)
@@ -84,7 +85,6 @@ async def discover_apis(url: str, include_hidden: bool = False):
             print(f"  - {ep.method} {ep.path}")
         
         await page.close()
-        await context.close()
     
     finally:
         await pool.close()
@@ -116,6 +116,7 @@ async def record_session(url: str, output: str):
     try:
         context = await create_stealth_context(pool)
         page = await context.new_page()
+        await apply_stealth_to_page(context, page)
         
         recorder = SessionRecorder()
         recording = await recorder.start_recording(page)
@@ -177,7 +178,6 @@ async def record_session(url: str, output: str):
         print(f"\nRecording saved to {output}")
         
         await page.close()
-        await context.close()
     
     finally:
         await pool.close()
