@@ -44,3 +44,4 @@ async def session_manager() -> AsyncGenerator[SessionManager, None]:
         shutil.rmtree(".test_sessions")
 
 
+

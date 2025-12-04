@@ -183,3 +183,4 @@ def test_from_state_machine():
     assert crawler is not None
     assert isinstance(crawler, CrawlerDefinition)
 
+

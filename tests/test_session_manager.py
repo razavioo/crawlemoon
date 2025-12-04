@@ -261,3 +261,4 @@ async def test_rotate_credential(session_manager):
     assert rotated is not None
     assert rotated.id == "cred_2"  # Best health score
 
+

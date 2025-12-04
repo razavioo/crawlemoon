@@ -79,3 +79,4 @@ def test_validate_arguments_valid_endpoint():
     is_valid, error = validate_arguments(arguments, required)
     assert is_valid is True
 
+

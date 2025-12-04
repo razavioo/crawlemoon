@@ -174,3 +174,4 @@ def test_auth_flow_definition():
     assert auth_flow.token_storage == "localStorage"
     assert auth_flow.refresh_mechanism == "refresh_token"
 
+

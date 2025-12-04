@@ -49,3 +49,4 @@ class MCPServerConfig:
             capture_screenshots=os.getenv("CRAWILFY_SCREENSHOTS", "false").lower() == "true",
         )
 
+

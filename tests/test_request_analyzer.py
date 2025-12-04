@@ -66,3 +66,4 @@ def test_analyze_request_no_auth():
     assert analyzed is not None
     assert analyzed.url == request.url
 
+

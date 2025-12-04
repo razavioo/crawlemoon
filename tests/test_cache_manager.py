@@ -181,3 +181,4 @@ def test_cache_manager_key_generation(cache_manager):
     assert cache_manager.get_page(url, param1="value1") == content1
     assert cache_manager.get_page(url, param1="value2") == content2
 
+

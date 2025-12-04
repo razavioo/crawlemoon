@@ -164,3 +164,4 @@ def test_websocket_session_creation():
     assert session.closed_at is None
     assert isinstance(session.opened_at, datetime)
 
+

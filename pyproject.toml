@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
 authors = [
-    {name = "Crawilfy Team", email = "team@crawilfy.com"}
+    {name = "emad.dev", email = "team@crawilfy.com"}
 ]
 keywords = ["crawling", "scraping", "automation", "mcp", "web-analysis", "playwright", "api-discovery"]
 classifiers = [

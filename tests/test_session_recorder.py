@@ -168,3 +168,4 @@ def test_event_type_enum():
     assert EventType.SCROLL.value == "scroll"
     assert EventType.NAVIGATE.value == "navigate"
 
+
