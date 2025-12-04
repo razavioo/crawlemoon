@@ -1,6 +1,7 @@
 """API Discovery Engine for REST, GraphQL, and hidden APIs."""
 
 import re
+import json
 import logging
 from dataclasses import dataclass, field
 from typing import List, Dict, Any, Optional, Set
@@ -179,6 +180,158 @@ class APIDiscoveryEngine:
             endpoints=endpoints,
             base_url=most_common_base,
         )
+    
+    def generate_openapi_spec(self, endpoints: List[RESTEndpoint], title: str = "Discovered API") -> Dict[str, Any]:
+        """Generate OpenAPI 3.0 specification from discovered endpoints."""
+        if not endpoints:
+            return {
+                "openapi": "3.0.0",
+                "info": {
+                    "title": title,
+                    "version": "1.0.0",
+                    "description": "API discovered by Crawilfy"
+                },
+                "paths": {}
+            }
+        
+        # Determine base URL
+        base_urls = {}
+        for endpoint in endpoints:
+            base_urls[endpoint.base_url] = base_urls.get(endpoint.base_url, 0) + 1
+        most_common_base = max(base_urls.items(), key=lambda x: x[1])[0]
+        
+        # Group endpoints by path
+        paths: Dict[str, Dict[str, Any]] = {}
+        
+        for endpoint in endpoints:
+            path = endpoint.path
+            method = endpoint.method.lower()
+            
+            if path not in paths:
+                paths[path] = {}
+            
+            # Build operation
+            operation = {
+                "summary": f"{method.upper()} {path}",
+                "operationId": f"{method}_{path.replace('/', '_').replace('{', '').replace('}', '').strip('_')}",
+                "responses": {}
+            }
+            
+            # Add request body if POST/PUT/PATCH
+            if method in ['post', 'put', 'patch']:
+                if endpoint.example_request and endpoint.example_request.get('body'):
+                    operation["requestBody"] = {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "example": endpoint.example_request.get('body')
+                                }
+                            }
+                        }
+                    }
+            
+            # Add parameters
+            if endpoint.parameters:
+                operation["parameters"] = []
+                
+                # Path parameters
+                for param in endpoint.parameters.get('path', []):
+                    operation["parameters"].append({
+                        "name": param,
+                        "in": "path",
+                        "required": True,
+                        "schema": {"type": "string"}
+                    })
+                
+                # Query parameters
+                for param, values in endpoint.parameters.get('query', {}).items():
+                    operation["parameters"].append({
+                        "name": param,
+                        "in": "query",
+                        "required": False,
+                        "schema": {"type": "string"}
+                    })
+            
+            # Add response examples
+            if endpoint.example_response:
+                status = endpoint.example_response.get('status', 200)
+                operation["responses"][str(status)] = {
+                    "description": f"Response for {method.upper()} {path}",
+                    "content": {
+                        "application/json": {
+                            "schema": {"type": "object"}
+                        }
+                    }
+                }
+            else:
+                operation["responses"]["200"] = {
+                    "description": "Successful response"
+                }
+            
+            paths[path][method] = operation
+        
+        # Build OpenAPI spec
+        spec = {
+            "openapi": "3.0.0",
+            "info": {
+                "title": title,
+                "version": "1.0.0",
+                "description": f"API discovered by Crawilfy. Base URL: {most_common_base}"
+            },
+            "servers": [
+                {
+                    "url": most_common_base,
+                    "description": "Discovered API server"
+                }
+            ],
+            "paths": paths
+        }
+        
+        return spec
+    
+    def export_postman_collection(self, endpoints: List[RESTEndpoint], name: str = "Discovered API") -> Dict[str, Any]:
+        """Export discovered endpoints as Postman collection."""
+        items = []
+        
+        for endpoint in endpoints:
+            item = {
+                "name": f"{endpoint.method} {endpoint.path}",
+                "request": {
+                    "method": endpoint.method,
+                    "header": [
+                        {"key": k, "value": v} for k, v in endpoint.headers.items()
+                    ],
+                    "url": {
+                        "raw": endpoint.url,
+                        "host": [endpoint.base_url.replace('https://', '').replace('http://', '')],
+                        "path": endpoint.path.split('/')[1:]
+                    }
+                }
+            }
+            
+            if endpoint.example_request and endpoint.example_request.get('body'):
+                item["request"]["body"] = {
+                    "mode": "raw",
+                    "raw": json.dumps(endpoint.example_request.get('body'), indent=2),
+                    "options": {
+                        "raw": {
+                            "language": "json"
+                        }
+                    }
+                }
+            
+            items.append(item)
+        
+        collection = {
+            "info": {
+                "name": name,
+                "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+            },
+            "item": items
+        }
+        
+        return collection
     
     def detect_graphql(
         self,

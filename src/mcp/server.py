@@ -13,14 +13,25 @@ from mcp.types import Tool, TextContent
 
 from ..core.browser.pool import BrowserPool
 from ..core.browser.stealth import create_stealth_context
+from ..core.browser.proxy_pool import ProxyPool, RotationStrategy
+from ..core.rate_limiter import RateLimiter
 from ..core.recording_storage import RecordingStorage
+from ..core.session.manager import SessionManager
 from ..intelligence.network.interceptor import DeepNetworkInterceptor
 from ..intelligence.network.api_discovery import APIDiscoveryEngine
 from ..intelligence.network.analyzer import RequestAnalyzer
+try:
+    from ..intelligence.network.sitemap import SitemapAnalyzer
+except ImportError:
+    SitemapAnalyzer = None
 from ..intelligence.js.analyzer import JSAnalyzer
 from ..intelligence.js.deobfuscator import JSDeobfuscator
 from ..intelligence.recorder.session import SessionRecorder, SessionRecording, Event, EventType, StateSnapshot
 from ..intelligence.security.bot_detection import BotDetectionAnalyzer
+from ..intelligence.security.captcha_solver import get_captcha_solver
+from ..intelligence.security.technology_detector import get_technology_detector
+from ..intelligence.extraction.content import get_content_extractor
+from ..intelligence.extraction.smart import get_smart_extractor
 from ..intelligence.generator.crawler_gen import CrawlerGenerator
 from .config import MCPServerConfig
 from .utils import validate_url, validate_arguments, with_timeout, with_retry
@@ -30,19 +41,55 @@ logger = logging.getLogger(__name__)
 # Global configuration
 config = MCPServerConfig.from_env()
 
+# Initialize proxy pool if configured
+_proxy_pool = None
+proxy_list = os.getenv("CRAWILFY_PROXIES")
+if proxy_list:
+    proxy_urls = [p.strip() for p in proxy_list.split(",") if p.strip()]
+    if proxy_urls:
+        rotation_strategy = os.getenv("CRAWILFY_PROXY_ROTATION", "round_robin")
+        try:
+            strategy = RotationStrategy(rotation_strategy.lower())
+        except ValueError:
+            strategy = RotationStrategy.ROUND_ROBIN
+        
+        _proxy_pool = ProxyPool(
+            proxies=proxy_urls,
+            rotation_strategy=strategy,
+        )
+        logger.info(f"Initialized proxy pool with {len(proxy_urls)} proxies")
+
 # Initialize global instances
 browser_pool = BrowserPool(
     max_size=config.max_browser_pool_size,
     headless=config.headless,
     browser_type=config.browser_type,
+    proxy_pool=_proxy_pool,
 )
 network_interceptor = DeepNetworkInterceptor()
 api_discovery = APIDiscoveryEngine()
 request_analyzer = RequestAnalyzer()
+sitemap_analyzer = SitemapAnalyzer() if SitemapAnalyzer else None
 js_analyzer = JSAnalyzer()
 js_deobfuscator = JSDeobfuscator()
 bot_detector = BotDetectionAnalyzer()
+content_extractor = get_content_extractor()
+smart_extractor = get_smart_extractor()
+technology_detector = get_technology_detector()
 recording_storage = RecordingStorage(storage_dir=config.recording_storage_dir)
+rate_limiter = RateLimiter()
+
+# Configure rate limiter from environment
+default_rps = float(os.getenv("CRAWILFY_RATE_LIMIT_RPS", "1.0"))
+rate_limiter.set_default_rate_limit(requests_per_second=default_rps)
+
+# Initialize session manager
+session_storage_dir = os.getenv("CRAWILFY_SESSION_DIR", ".sessions")
+user_data_dir = os.getenv("CRAWILFY_USER_DATA_DIR")
+session_manager = SessionManager(
+    storage_path=session_storage_dir,
+    user_data_dir=user_data_dir,
+)
 
 # Active recordings tracking
 _active_recordings: Dict[str, Tuple[SessionRecorder, Any, Any]] = {}  # recording_id -> (recorder, page, context)
@@ -58,12 +105,16 @@ server = Server("crawilfy-mcp-server")
 
 
 @asynccontextmanager
-async def browser_context_manager():
-    """Context manager for browser operations with proper cleanup."""
+async def browser_context_manager(url: Optional[str] = None):
+    """Context manager for browser operations with proper cleanup.
+    
+    Args:
+        url: Optional URL for proxy selection (sticky strategy)
+    """
     context = None
     page = None
     try:
-        context = await create_stealth_context(browser_pool)
+        context = await create_stealth_context(browser_pool, url=url)
         page = await context.new_page()
         page.set_default_timeout(config.navigation_timeout * 1000)  # Playwright uses milliseconds
         yield page
@@ -307,6 +358,244 @@ async def list_tools() -> List[Tool]:
                 "properties": {}
             }
         ),
+        Tool(
+            name="configure_proxies",
+            description="Configure proxy pool with rotation strategies. Supports HTTP, HTTPS, SOCKS4, and SOCKS5 proxies.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "proxies": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "List of proxy URLs (e.g., ['http://proxy1:8080', 'socks5://proxy2:1080'])"
+                    },
+                    "rotation_strategy": {
+                        "type": "string",
+                        "enum": ["round_robin", "random", "sticky", "least_used"],
+                        "description": "Proxy rotation strategy (default: round_robin)",
+                        "default": "round_robin"
+                    },
+                    "health_check_interval": {
+                        "type": "number",
+                        "description": "Health check interval in seconds (default: 300)",
+                        "default": 300
+                    }
+                },
+                "required": ["proxies"]
+            }
+        ),
+        Tool(
+            name="save_session",
+            description="Save a browser session (cookies, localStorage, etc.) for later reuse.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "session_id": {
+                        "type": "string",
+                        "description": "Session ID to save"
+                    }
+                },
+                "required": ["session_id"]
+            }
+        ),
+        Tool(
+            name="load_session",
+            description="Load a previously saved session and apply it to a browser context.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "session_id": {
+                        "type": "string",
+                        "description": "Session ID to load"
+                    }
+                },
+                "required": ["session_id"]
+            }
+        ),
+        Tool(
+            name="list_sessions",
+            description="List all saved sessions with metadata.",
+            inputSchema={
+                "type": "object",
+                "properties": {}
+            }
+        ),
+        Tool(
+            name="analyze_sitemap",
+            description="Analyze sitemap.xml file to extract all URLs and metadata.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "sitemap_url": {
+                        "type": "string",
+                        "description": "URL of the sitemap.xml file"
+                    }
+                },
+                "required": ["sitemap_url"]
+            }
+        ),
+        Tool(
+            name="check_robots",
+            description="Analyze robots.txt file to check crawl rules and discover sitemaps.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "url": {
+                        "type": "string",
+                        "description": "Base URL of the website (robots.txt will be fetched from root)"
+                    }
+                },
+                "required": ["url"]
+            }
+        ),
+        Tool(
+            name="take_screenshot",
+            description="Take a screenshot of a webpage. Returns base64-encoded image.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "url": {
+                        "type": "string",
+                        "description": "URL of the page to screenshot"
+                    },
+                    "full_page": {
+                        "type": "boolean",
+                        "description": "Capture full page (default: false)",
+                        "default": False
+                    },
+                    "wait_for": {
+                        "type": "string",
+                        "description": "Wait for selector or 'load'/'networkidle' (optional)"
+                    }
+                },
+                "required": ["url"]
+            }
+        ),
+        Tool(
+            name="extract_article",
+            description="Extract clean article content from a webpage using intelligent content extraction. Returns title, text, markdown, and metadata.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "url": {
+                        "type": "string",
+                        "description": "URL of the page to extract content from"
+                    },
+                    "include_images": {
+                        "type": "boolean",
+                        "description": "Include image references (default: true)",
+                        "default": True
+                    },
+                    "output_format": {
+                        "type": "string",
+                        "enum": ["text", "markdown", "json"],
+                        "description": "Output format (default: text)",
+                        "default": "text"
+                    }
+                },
+                "required": ["url"]
+            }
+        ),
+        Tool(
+            name="solve_captcha",
+            description="Detect and solve CAPTCHA on a webpage. Supports reCAPTCHA, hCaptcha, and Cloudflare Turnstile.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "url": {
+                        "type": "string",
+                        "description": "URL of the page with CAPTCHA"
+                    },
+                    "captcha_type": {
+                        "type": "string",
+                        "enum": ["auto", "recaptcha_v2", "hcaptcha", "turnstile"],
+                        "description": "CAPTCHA type to solve (default: auto)",
+                        "default": "auto"
+                    }
+                },
+                "required": ["url"]
+            }
+        ),
+        Tool(
+            name="detect_technology",
+            description="Detect technology stack of a website (CMS, frameworks, CDN, analytics, etc.).",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "url": {
+                        "type": "string",
+                        "description": "URL of the website to analyze"
+                    }
+                },
+                "required": ["url"]
+            }
+        ),
+        Tool(
+            name="smart_extract",
+            description="Extract data from a webpage using natural language queries. Uses LLM to generate selectors and extract structured data.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "url": {
+                        "type": "string",
+                        "description": "URL of the page to extract from"
+                    },
+                    "query": {
+                        "type": "string",
+                        "description": "Natural language query describing what to extract (e.g., 'extract all product prices and titles')"
+                    }
+                },
+                "required": ["url", "query"]
+            }
+        ),
+        Tool(
+            name="convert_to_markdown",
+            description="Convert webpage content to clean markdown format optimized for LLM consumption.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "url": {
+                        "type": "string",
+                        "description": "URL of the page to convert"
+                    }
+                },
+                "required": ["url"]
+            }
+        ),
+        Tool(
+            name="stealth_request",
+            description="Make HTTP request with TLS fingerprint impersonation to bypass bot detection. Uses curl_cffi for browser-like requests.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "url": {
+                        "type": "string",
+                        "description": "URL to request"
+                    },
+                    "method": {
+                        "type": "string",
+                        "enum": ["GET", "POST", "PUT", "DELETE"],
+                        "description": "HTTP method (default: GET)",
+                        "default": "GET"
+                    },
+                    "browser": {
+                        "type": "string",
+                        "enum": ["chrome", "edge", "safari", "firefox"],
+                        "description": "Browser to impersonate (default: chrome)",
+                        "default": "chrome"
+                    },
+                    "headers": {
+                        "type": "object",
+                        "description": "Optional custom headers"
+                    },
+                    "data": {
+                        "type": "object",
+                        "description": "Optional request data (for POST/PUT)"
+                    }
+                },
+                "required": ["url"]
+            }
+        ),
     ]
 
 
@@ -350,6 +639,19 @@ async def call_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
             "deobfuscate_js": handle_deobfuscate_js,
             "extract_from_js": handle_extract_from_js,
             "health_check": handle_health_check,
+            "configure_proxies": handle_configure_proxies,
+            "save_session": handle_save_session,
+            "load_session": handle_load_session,
+            "list_sessions": handle_list_sessions,
+            "analyze_sitemap": handle_analyze_sitemap,
+            "check_robots": handle_check_robots,
+            "take_screenshot": handle_take_screenshot,
+            "extract_article": handle_extract_article,
+            "solve_captcha": handle_solve_captcha,
+            "detect_technology": handle_detect_technology,
+            "smart_extract": handle_smart_extract,
+            "convert_to_markdown": handle_convert_to_markdown,
+            "stealth_request": handle_stealth_request,
         }
         
         handler = handler_map.get(name)
@@ -391,20 +693,67 @@ async def call_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
         )]
 
 
+async def handle_configure_proxies(arguments: Dict[str, Any]) -> Dict[str, Any]:
+    """Handle configure_proxies tool."""
+    global _proxy_pool
+    
+    proxy_urls = arguments["proxies"]
+    rotation_strategy_str = arguments.get("rotation_strategy", "round_robin")
+    health_check_interval = arguments.get("health_check_interval", 300)
+    
+    try:
+        strategy = RotationStrategy(rotation_strategy_str.lower())
+    except ValueError:
+        return {
+            "error": f"Invalid rotation strategy: {rotation_strategy_str}. Must be one of: round_robin, random, sticky, least_used"
+        }
+    
+    # Create new proxy pool
+    new_proxy_pool = ProxyPool(
+        proxies=proxy_urls,
+        rotation_strategy=strategy,
+        health_check_interval=health_check_interval,
+    )
+    
+    # Update browser pool with new proxy pool
+    browser_pool.set_proxy_pool(new_proxy_pool)
+    _proxy_pool = new_proxy_pool
+    
+    # Run initial health check
+    health_results = await _proxy_pool.health_check_all()
+    
+    return {
+        "status": "configured",
+        "proxies_count": len(proxy_urls),
+        "rotation_strategy": rotation_strategy_str,
+        "health_check_interval": health_check_interval,
+        "initial_health": health_results,
+        "stats": _proxy_pool.get_stats(),
+        "timestamp": datetime.now().isoformat(),
+    }
+
+
 @with_retry(max_retries=config.max_retries, delay=config.retry_delay)
 async def handle_deep_analyze(arguments: Dict[str, Any]) -> Dict[str, Any]:
     """Handle deep_analyze tool with comprehensive error handling."""
     url = arguments["url"]
     depth = arguments.get("depth", "full")
     
-    async with browser_context_manager() as page:
+    # Apply rate limiting
+    await rate_limiter.wait_if_needed(url)
+    
+    async with browser_context_manager(url=url) as page:
         try:
             # Start network interception
             await network_interceptor.start_intercepting(page)
             
             # Navigate to URL
             wait_until = "networkidle" if config.wait_for_network_idle else "load"
-            await page.goto(url, wait_until=wait_until, timeout=config.navigation_timeout * 1000)
+            response = await page.goto(url, wait_until=wait_until, timeout=config.navigation_timeout * 1000)
+            
+            # Record response for rate limiting
+            if response:
+                rate_limiter.record_response(url, response.status)
             
             # Get page content
             content = await page.content()
@@ -457,11 +806,18 @@ async def handle_discover_apis(arguments: Dict[str, Any]) -> Dict[str, Any]:
     url = arguments["url"]
     include_hidden = arguments.get("include_hidden", True)
     
-    async with browser_context_manager() as page:
+    # Apply rate limiting
+    await rate_limiter.wait_if_needed(url)
+    
+    async with browser_context_manager(url=url) as page:
         try:
             await network_interceptor.start_intercepting(page)
             wait_until = "networkidle" if config.wait_for_network_idle else "load"
-            await page.goto(url, wait_until=wait_until, timeout=config.navigation_timeout * 1000)
+            response = await page.goto(url, wait_until=wait_until, timeout=config.navigation_timeout * 1000)
+            
+            # Record response for rate limiting
+            if response:
+                rate_limiter.record_response(url, response.status)
             
             requests = await network_interceptor.capture_all_requests()
             responses = await network_interceptor.capture_all_responses()
@@ -548,11 +904,18 @@ async def handle_analyze_websocket(arguments: Dict[str, Any]) -> Dict[str, Any]:
     url = arguments["url"]
     wait_time = arguments.get("wait_time", 5)
     
-    async with browser_context_manager() as page:
+    # Apply rate limiting
+    await rate_limiter.wait_if_needed(url)
+    
+    async with browser_context_manager(url=url) as page:
         try:
             await network_interceptor.start_intercepting(page)
             wait_until = "networkidle" if config.wait_for_network_idle else "load"
-            await page.goto(url, wait_until=wait_until, timeout=config.navigation_timeout * 1000)
+            response = await page.goto(url, wait_until=wait_until, timeout=config.navigation_timeout * 1000)
+            
+            # Record response for rate limiting
+            if response:
+                rate_limiter.record_response(url, response.status)
             
             # Wait for WebSocket connections
             await asyncio.sleep(wait_time)
@@ -591,8 +954,11 @@ async def handle_record_session(arguments: Dict[str, Any]) -> Dict[str, Any]:
     url = arguments["url"]
     auto_save = arguments.get("auto_save", True)
     
+    # Apply rate limiting
+    await rate_limiter.wait_if_needed(url)
+    
     try:
-        context = await create_stealth_context(browser_pool)
+        context = await create_stealth_context(browser_pool, url=url)
         page = await context.new_page()
         page.set_default_timeout(config.navigation_timeout * 1000)
         
@@ -604,7 +970,11 @@ async def handle_record_session(arguments: Dict[str, Any]) -> Dict[str, Any]:
         
         # Navigate to URL
         wait_until = "networkidle" if config.wait_for_network_idle else "load"
-        await page.goto(url, wait_until=wait_until, timeout=config.navigation_timeout * 1000)
+        response = await page.goto(url, wait_until=wait_until, timeout=config.navigation_timeout * 1000)
+        
+        # Record response for rate limiting
+        if response:
+            rate_limiter.record_response(url, response.status)
         
         # Store active recording
         _active_recordings[recording.id] = (recorder, page, context)
@@ -805,11 +1175,18 @@ async def handle_analyze_auth(arguments: Dict[str, Any]) -> Dict[str, Any]:
     """Handle analyze_auth tool."""
     url = arguments["url"]
     
-    async with browser_context_manager() as page:
+    # Apply rate limiting
+    await rate_limiter.wait_if_needed(url)
+    
+    async with browser_context_manager(url=url) as page:
         try:
             await network_interceptor.start_intercepting(page)
             wait_until = "networkidle" if config.wait_for_network_idle else "load"
-            await page.goto(url, wait_until=wait_until, timeout=config.navigation_timeout * 1000)
+            response = await page.goto(url, wait_until=wait_until, timeout=config.navigation_timeout * 1000)
+            
+            # Record response for rate limiting
+            if response:
+                rate_limiter.record_response(url, response.status)
             
             requests = await network_interceptor.capture_all_requests()
             
@@ -838,10 +1215,17 @@ async def handle_detect_protection(arguments: Dict[str, Any]) -> Dict[str, Any]:
     """Handle detect_protection tool."""
     url = arguments["url"]
     
-    async with browser_context_manager() as page:
+    # Apply rate limiting
+    await rate_limiter.wait_if_needed(url)
+    
+    async with browser_context_manager(url=url) as page:
         try:
             wait_until = "networkidle" if config.wait_for_network_idle else "load"
             response = await page.goto(url, wait_until=wait_until, timeout=config.navigation_timeout * 1000)
+            
+            # Record response for rate limiting
+            if response:
+                rate_limiter.record_response(url, response.status)
             content = await page.content()
             
             headers = response.headers if response else {}
@@ -964,6 +1348,9 @@ async def handle_health_check(arguments: Dict[str, Any]) -> Dict[str, Any]:
         # Check active recordings
         active_count = len(_active_recordings)
         
+        # Get rate limiter stats
+        rate_limiter_stats = rate_limiter.get_stats()
+        
         health_status = {
             "status": "healthy",
             "browser_pool": {
@@ -976,6 +1363,7 @@ async def handle_health_check(arguments: Dict[str, Any]) -> Dict[str, Any]:
                 "active_recordings": active_count,
                 "healthy": True,
             },
+            "rate_limiter": rate_limiter_stats,
             "config": {
                 "navigation_timeout": config.navigation_timeout,
                 "operation_timeout": config.operation_timeout,
@@ -997,6 +1385,460 @@ async def handle_health_check(arguments: Dict[str, Any]) -> Dict[str, Any]:
             "error": str(e),
             "timestamp": datetime.now().isoformat(),
         }
+
+
+async def handle_save_session(arguments: Dict[str, Any]) -> Dict[str, Any]:
+    """Handle save_session tool."""
+    session_id = arguments["session_id"]
+    
+    try:
+        # Check if there's an active recording with this session_id
+        # For now, we'll create/update a session from current browser state
+        # In a real implementation, we'd capture cookies/storage from an active browser context
+        
+        result = await session_manager.save_session(session_id)
+        return result
+    
+    except Exception as e:
+        logger.error(f"Error saving session {session_id}: {e}", exc_info=True)
+        return {
+            "error": str(e),
+            "session_id": session_id,
+        }
+
+
+async def handle_load_session(arguments: Dict[str, Any]) -> Dict[str, Any]:
+    """Handle load_session tool."""
+    session_id = arguments["session_id"]
+    
+    try:
+        session = await session_manager.load_session_state(session_id)
+        
+        if not session:
+            return {
+                "error": f"Session {session_id} not found",
+                "session_id": session_id,
+            }
+        
+        # Return session info - actual application to browser context
+        # would happen when creating a new browser context
+        return {
+            "status": "loaded",
+            "session_id": session_id,
+            "cookies_count": len(session.cookies),
+            "local_storage_count": len(session.local_storage),
+            "session_storage_count": len(session.session_storage),
+            "created_at": session.created_at.isoformat(),
+            "last_used": session.last_used.isoformat(),
+            "user_data_dir": str(session_manager.get_user_data_dir(session_id)) if session_manager.get_user_data_dir(session_id) else None,
+            "timestamp": datetime.now().isoformat(),
+        }
+    
+    except Exception as e:
+        logger.error(f"Error loading session {session_id}: {e}", exc_info=True)
+        return {
+            "error": str(e),
+            "session_id": session_id,
+        }
+
+
+async def handle_list_sessions(arguments: Dict[str, Any]) -> Dict[str, Any]:
+    """Handle list_sessions tool."""
+    try:
+        sessions = await session_manager.list_sessions()
+        
+        return {
+            "sessions": sessions,
+            "total": len(sessions),
+            "timestamp": datetime.now().isoformat(),
+        }
+    
+    except Exception as e:
+        logger.error(f"Error listing sessions: {e}", exc_info=True)
+        return {
+            "error": str(e),
+            "sessions": [],
+        }
+
+
+async def handle_analyze_sitemap(arguments: Dict[str, Any]) -> Dict[str, Any]:
+    """Handle analyze_sitemap tool."""
+    if not sitemap_analyzer:
+        return {"error": "Sitemap analyzer not available"}
+    
+    sitemap_url = arguments["sitemap_url"]
+    
+    try:
+        analysis = await sitemap_analyzer.analyze_sitemap(sitemap_url)
+        
+        return {
+            "sitemap_url": sitemap_url,
+            "sitemap_type": analysis.sitemap_type,
+            "total_urls": analysis.total_urls,
+            "entries": [
+                {
+                    "url": entry.url,
+                    "lastmod": entry.lastmod,
+                    "changefreq": entry.changefreq,
+                    "priority": entry.priority,
+                }
+                for entry in analysis.entries[:100]  # Limit to first 100
+            ],
+            "errors": analysis.errors,
+            "timestamp": datetime.now().isoformat(),
+        }
+    
+    except Exception as e:
+        logger.error(f"Error analyzing sitemap {sitemap_url}: {e}", exc_info=True)
+        return {
+            "error": str(e),
+            "sitemap_url": sitemap_url,
+        }
+
+
+async def handle_check_robots(arguments: Dict[str, Any]) -> Dict[str, Any]:
+    """Handle check_robots tool."""
+    if not sitemap_analyzer:
+        return {"error": "Sitemap analyzer not available"}
+    
+    url = arguments["url"]
+    
+    try:
+        analysis = await sitemap_analyzer.analyze_robots(url)
+        
+        return {
+            "robots_url": analysis.robots_url,
+            "valid": analysis.valid,
+            "rules": [
+                {
+                    "user_agent": rule.user_agent,
+                    "allow": rule.allow,
+                    "disallow": rule.disallow,
+                    "crawl_delay": rule.crawl_delay,
+                }
+                for rule in analysis.rules
+            ],
+            "sitemaps": analysis.sitemaps,
+            "errors": analysis.errors,
+            "timestamp": datetime.now().isoformat(),
+        }
+    
+    except Exception as e:
+        logger.error(f"Error checking robots.txt for {url}: {e}", exc_info=True)
+        return {
+            "error": str(e),
+            "url": url,
+        }
+
+
+@with_retry(max_retries=config.max_retries, delay=config.retry_delay)
+async def handle_take_screenshot(arguments: Dict[str, Any]) -> Dict[str, Any]:
+    """Handle take_screenshot tool."""
+    import base64
+    
+    url = arguments["url"]
+    full_page = arguments.get("full_page", False)
+    wait_for = arguments.get("wait_for")
+    
+    # Apply rate limiting
+    await rate_limiter.wait_if_needed(url)
+    
+    async with browser_context_manager(url=url) as page:
+        try:
+            # Navigate to URL
+            wait_until = "networkidle" if config.wait_for_network_idle else "load"
+            response = await page.goto(url, wait_until=wait_until, timeout=config.navigation_timeout * 1000)
+            
+            # Record response for rate limiting
+            if response:
+                rate_limiter.record_response(url, response.status)
+            
+            # Wait for selector if specified
+            if wait_for and wait_for not in ["load", "networkidle"]:
+                await page.wait_for_selector(wait_for, timeout=10000)
+            
+            # Take screenshot
+            screenshot_bytes = await page.screenshot(full_page=full_page)
+            screenshot_b64 = base64.b64encode(screenshot_bytes).decode('utf-8')
+            
+            return {
+                "url": url,
+                "full_page": full_page,
+                "screenshot": screenshot_b64,
+                "format": "png",
+                "timestamp": datetime.now().isoformat(),
+            }
+        
+        except Exception as e:
+            logger.error(f"Error taking screenshot of {url}: {e}", exc_info=True)
+            raise
+
+
+@with_retry(max_retries=config.max_retries, delay=config.retry_delay)
+async def handle_extract_article(arguments: Dict[str, Any]) -> Dict[str, Any]:
+    """Handle extract_article tool."""
+    url = arguments["url"]
+    include_images = arguments.get("include_images", True)
+    output_format = arguments.get("output_format", "text")
+    
+    # Apply rate limiting
+    await rate_limiter.wait_if_needed(url)
+    
+    async with browser_context_manager(url=url) as page:
+        try:
+            wait_until = "networkidle" if config.wait_for_network_idle else "load"
+            response = await page.goto(url, wait_until=wait_until, timeout=config.navigation_timeout * 1000)
+            
+            if response:
+                rate_limiter.record_response(url, response.status)
+            
+            html = await page.content()
+            
+            # Extract content
+            extracted = content_extractor.extract(
+                html,
+                url=url,
+                include_images=include_images,
+                output_format=output_format,
+            )
+            
+            return {
+                "url": url,
+                "title": extracted.title,
+                "text": extracted.text,
+                "markdown": extracted.markdown,
+                "author": extracted.author,
+                "date": extracted.date,
+                "language": extracted.language,
+                "images": extracted.images,
+                "categories": extracted.categories,
+                "tags": extracted.tags,
+                "metadata": extracted.metadata,
+                "timestamp": datetime.now().isoformat(),
+            }
+        
+        except Exception as e:
+            logger.error(f"Error extracting article from {url}: {e}", exc_info=True)
+            raise
+
+
+@with_retry(max_retries=config.max_retries, delay=config.retry_delay)
+async def handle_solve_captcha(arguments: Dict[str, Any]) -> Dict[str, Any]:
+    """Handle solve_captcha tool."""
+    url = arguments["url"]
+    captcha_type_str = arguments.get("captcha_type", "auto")
+    
+    # Apply rate limiting
+    await rate_limiter.wait_if_needed(url)
+    
+    async with browser_context_manager(url=url) as page:
+        try:
+            wait_until = "networkidle" if config.wait_for_network_idle else "load"
+            response = await page.goto(url, wait_until=wait_until, timeout=config.navigation_timeout * 1000)
+            
+            if response:
+                rate_limiter.record_response(url, response.status)
+            
+            content = await page.content()
+            
+            # Detect CAPTCHA type
+            from ..intelligence.security.bot_detection import CaptchaType
+            captcha_type = None
+            if captcha_type_str != "auto":
+                try:
+                    captcha_type = CaptchaType[captcha_type_str.upper()]
+                except KeyError:
+                    captcha_type = None
+            
+            # Solve CAPTCHA
+            solution = await bot_detector.solve_captcha_if_present(
+                content,
+                url,
+                captcha_type,
+            )
+            
+            detected_type = bot_detector.detect_captcha_type(content)
+            
+            return {
+                "url": url,
+                "detected_type": detected_type.value if detected_type else "none",
+                "solved": solution is not None,
+                "solution_token": solution[:50] + "..." if solution and len(solution) > 50 else solution,
+                "timestamp": datetime.now().isoformat(),
+            }
+        
+        except Exception as e:
+            logger.error(f"Error solving CAPTCHA on {url}: {e}", exc_info=True)
+            raise
+
+
+@with_retry(max_retries=config.max_retries, delay=config.retry_delay)
+async def handle_detect_technology(arguments: Dict[str, Any]) -> Dict[str, Any]:
+    """Handle detect_technology tool."""
+    url = arguments["url"]
+    
+    # Apply rate limiting
+    await rate_limiter.wait_if_needed(url)
+    
+    async with browser_context_manager(url=url) as page:
+        try:
+            wait_until = "networkidle" if config.wait_for_network_idle else "load"
+            response = await page.goto(url, wait_until=wait_until, timeout=config.navigation_timeout * 1000)
+            
+            if response:
+                rate_limiter.record_response(url, response.status)
+            
+            html = await page.content()
+            headers = dict(response.headers) if response else {}
+            
+            # Detect technologies
+            stack = technology_detector.detect(html, url, headers)
+            protection_techs = technology_detector.get_protection_technologies(stack)
+            
+            return {
+                "url": url,
+                "cms": [{"name": t.name, "version": t.version} for t in stack.cms],
+                "frameworks": [{"name": t.name, "version": t.version} for t in stack.frameworks],
+                "programming_languages": [{"name": t.name, "version": t.version} for t in stack.programming_languages],
+                "web_servers": [{"name": t.name, "version": t.version} for t in stack.web_servers],
+                "databases": [{"name": t.name, "version": t.version} for t in stack.databases],
+                "cdn": [{"name": t.name, "version": t.version} for t in stack.cdn],
+                "analytics": [{"name": t.name, "version": t.version} for t in stack.analytics],
+                "advertising": [{"name": t.name, "version": t.version} for t in stack.advertising],
+                "javascript_libraries": [{"name": t.name, "version": t.version} for t in stack.javascript_libraries],
+                "protection_technologies": protection_techs,
+                "other": [{"name": t.name, "version": t.version} for t in stack.other],
+                "timestamp": datetime.now().isoformat(),
+            }
+        
+        except Exception as e:
+            logger.error(f"Error detecting technology for {url}: {e}", exc_info=True)
+            raise
+
+
+@with_retry(max_retries=config.max_retries, delay=config.retry_delay)
+async def handle_smart_extract(arguments: Dict[str, Any]) -> Dict[str, Any]:
+    """Handle smart_extract tool."""
+    url = arguments["url"]
+    query = arguments["query"]
+    
+    # Apply rate limiting
+    await rate_limiter.wait_if_needed(url)
+    
+    async with browser_context_manager(url=url) as page:
+        try:
+            wait_until = "networkidle" if config.wait_for_network_idle else "load"
+            response = await page.goto(url, wait_until=wait_until, timeout=config.navigation_timeout * 1000)
+            
+            if response:
+                rate_limiter.record_response(url, response.status)
+            
+            html = await page.content()
+            
+            # Smart extract
+            if smart_extractor:
+                result = smart_extractor.extract(html, query)
+                
+                return {
+                    "url": url,
+                    "query": query,
+                    "targets": [
+                        {
+                            "description": t.description,
+                            "selector_type": t.selector_type,
+                            "selector": t.selector,
+                        }
+                        for t in result.targets
+                    ],
+                    "extracted_data": result.extracted_data,
+                    "confidence": result.confidence,
+                    "timestamp": datetime.now().isoformat(),
+                }
+            else:
+                return {
+                    "error": "Smart extractor not available. Please configure OPENAI_API_KEY.",
+                    "url": url,
+                    "query": query,
+                }
+        
+        except Exception as e:
+            logger.error(f"Error in smart_extract for {url}: {e}", exc_info=True)
+            raise
+
+
+@with_retry(max_retries=config.max_retries, delay=config.retry_delay)
+async def handle_convert_to_markdown(arguments: Dict[str, Any]) -> Dict[str, Any]:
+    """Handle convert_to_markdown tool."""
+    url = arguments["url"]
+    
+    # Apply rate limiting
+    await rate_limiter.wait_if_needed(url)
+    
+    async with browser_context_manager(url=url) as page:
+        try:
+            wait_until = "networkidle" if config.wait_for_network_idle else "load"
+            response = await page.goto(url, wait_until=wait_until, timeout=config.navigation_timeout * 1000)
+            
+            if response:
+                rate_limiter.record_response(url, response.status)
+            
+            html = await page.content()
+            
+            # Convert to markdown
+            markdown = content_extractor.extract_to_markdown(html, url)
+            
+            return {
+                "url": url,
+                "markdown": markdown,
+                "length": len(markdown),
+                "timestamp": datetime.now().isoformat(),
+            }
+        
+        except Exception as e:
+            logger.error(f"Error converting {url} to markdown: {e}", exc_info=True)
+            raise
+
+
+@with_retry(max_retries=config.max_retries, delay=config.retry_delay)
+async def handle_stealth_request(arguments: Dict[str, Any]) -> Dict[str, Any]:
+    """Handle stealth_request tool."""
+    from ..core.http.stealth_client import create_stealth_client
+    
+    url = arguments["url"]
+    method = arguments.get("method", "GET")
+    browser = arguments.get("browser", "chrome")
+    headers = arguments.get("headers", {})
+    data = arguments.get("data")
+    
+    try:
+        # Create stealth client
+        client = create_stealth_client(browser=browser)
+        
+        # Make request
+        if method == "GET":
+            response = client.get(url, headers=headers)
+        elif method == "POST":
+            response = client.post(url, headers=headers, json=data)
+        elif method == "PUT":
+            response = client.request("PUT", url, headers=headers, json=data)
+        elif method == "DELETE":
+            response = client.request("DELETE", url, headers=headers)
+        else:
+            return {"error": f"Unsupported method: {method}"}
+        
+        return {
+            "url": url,
+            "method": method,
+            "status_code": response.status_code,
+            "headers": dict(response.headers),
+            "content": response.text[:10000],  # Limit content size
+            "content_length": len(response.text),
+            "timestamp": datetime.now().isoformat(),
+        }
+    
+    except Exception as e:
+        logger.error(f"Error in stealth_request for {url}: {e}", exc_info=True)
+        raise
 
 
 async def main():

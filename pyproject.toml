@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "crawilfy-mcp-server"
-version = "0.1.2"
+version = "0.2.0"
 description = "Advanced Web Crawling Platform with Deep Analysis and MCP Server"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -41,6 +41,27 @@ dependencies = [
     "esprima>=4.0.0",
     "beautifulsoup4>=4.12.0",
     "lxml>=5.0.0",
+    "cryptography>=41.0.0",
+    # Phase 1: Advanced Anti-Detection & Stealth
+    "curl-cffi>=0.6.0",
+    "fake-useragent>=1.4.0",
+    # Phase 2: Content Intelligence
+    "trafilatura>=1.6.0",
+    "selectolax>=0.3.0",
+    "markdownify>=0.11.0",
+    # Phase 3: CAPTCHA Solving
+    "python-anticaptcha>=1.0.0",
+    "capsolver>=1.0.0",
+    # Phase 4: Smart Extraction & AI
+    "instructor>=0.4.0",
+    "openai>=1.0.0",
+    # Phase 5: Technology Detection
+    "python-Wappalyzer>=0.3.0",
+    # Additional utilities
+    "ftfy>=6.1.0",
+    "dateparser>=1.2.0",
+    "url-normalize>=1.4.0",
+    "tldextract>=5.0.0",
 ]
 
 [project.optional-dependencies]
@@ -72,5 +93,4 @@ warn_unused_configs = true
 where = ["."]
 include = ["src*"]
 exclude = ["tests*", "*.tests*", "*.tests.*", "tests.*"]
-
 

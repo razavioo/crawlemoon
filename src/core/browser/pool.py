@@ -5,6 +5,7 @@ import logging
 from dataclasses import dataclass
 from typing import Optional, Dict, List
 from datetime import datetime, timedelta
+from urllib.parse import urlparse
 
 from playwright.async_api import (
     Browser,
@@ -13,6 +14,8 @@ from playwright.async_api import (
     async_playwright,
     Playwright,
 )
+
+from .proxy_pool import ProxyPool, RotationStrategy
 
 logger = logging.getLogger(__name__)
 
@@ -47,11 +50,13 @@ class BrowserPool:
         max_age_minutes: int = 60,
         headless: bool = True,
         browser_type: str = "chromium",
+        proxy_pool: Optional[ProxyPool] = None,
     ):
         self.max_size = max_size
         self.max_age_minutes = max_age_minutes
         self.headless = headless
         self.browser_type = browser_type
+        self.proxy_pool = proxy_pool
         
         self._playwright: Optional[Playwright] = None
         self._instances: List[BrowserInstance] = []
@@ -80,11 +85,30 @@ class BrowserPool:
             
             logger.info("Browser pool closed")
     
-    async def acquire(self, **context_options) -> BrowserContext:
-        """Acquire a browser context from the pool."""
+    async def acquire(self, url: Optional[str] = None, **context_options) -> BrowserContext:
+        """Acquire a browser context from the pool.
+        
+        Args:
+            url: Optional URL to extract domain for sticky proxy strategy
+            **context_options: Additional context options
+        """
         async with self._lock:
             # Clean up expired or overused instances
             await self._cleanup()
+            
+            # Get proxy if proxy pool is configured
+            proxy_config = None
+            if self.proxy_pool:
+                domain = None
+                if url:
+                    parsed = urlparse(url)
+                    domain = parsed.netloc
+                
+                proxy = await self.proxy_pool.get_proxy(domain=domain)
+                if proxy:
+                    proxy_config = proxy.to_playwright_config()
+                    context_options["proxy"] = proxy_config
+                    logger.debug(f"Using proxy: {proxy.url} for {url or 'context'}")
             
             # Try to reuse existing instance
             for instance in self._instances:
@@ -101,7 +125,7 @@ class BrowserPool:
             # Wait and retry if pool is full
             logger.warning("Browser pool is full, waiting...")
             await asyncio.sleep(1)
-            return await self.acquire(**context_options)
+            return await self.acquire(url=url, **context_options)
     
     async def _create_new_instance(self, **context_options) -> BrowserContext:
         """Create a new browser instance."""
@@ -152,7 +176,7 @@ class BrowserPool:
     
     def get_stats(self) -> Dict:
         """Get pool statistics."""
-        return {
+        stats = {
             "size": len(self._instances),
             "max_size": self.max_size,
             "instances": [
@@ -164,6 +188,16 @@ class BrowserPool:
                 for inst in self._instances
             ],
         }
+        
+        if self.proxy_pool:
+            stats["proxy_pool"] = self.proxy_pool.get_stats()
+        
+        return stats
+    
+    def set_proxy_pool(self, proxy_pool: Optional[ProxyPool]) -> None:
+        """Set or update the proxy pool."""
+        self.proxy_pool = proxy_pool
+        logger.info("Proxy pool updated")
 
 
 

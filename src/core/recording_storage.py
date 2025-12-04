@@ -32,12 +32,13 @@ class RecordingStorage:
         # In-memory cache of active recordings
         self._active_recordings: Dict[str, SessionRecording] = {}
     
-    def save_recording(self, recording: SessionRecording) -> str:
+    def save_recording(self, recording: SessionRecording, export_har: bool = True) -> str:
         """
         Save a recording to disk.
         
         Args:
             recording: The recording to save
+            export_har: Also export HAR file (default: True)
             
         Returns:
             Path to saved recording file
@@ -47,9 +48,20 @@ class RecordingStorage:
         # Serialize recording
         data = self._serialize_recording(recording)
         
+        # Add HAR data if available
+        if recording.har_data:
+            data["har"] = recording.har_data
+        
         # Write to file
         with open(file_path, 'w') as f:
             json.dump(data, f, indent=2, default=str)
+        
+        # Export HAR file separately if requested
+        if export_har and recording.har_data:
+            har_path = self.storage_dir / f"{recording.id}.har"
+            with open(har_path, 'w') as f:
+                json.dump(recording.har_data, f, indent=2)
+            logger.info(f"Exported HAR file: {har_path}")
         
         logger.info(f"Saved recording {recording.id} to {file_path}")
         return str(file_path)
