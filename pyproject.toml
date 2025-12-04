@@ -1,0 +1,76 @@
+[build-system]
+requires = ["setuptools>=65.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "crawilfy-mcp-server"
+version = "0.1.0"
+description = "Advanced Web Crawling Platform with Deep Analysis and MCP Server"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [
+    {name = "Crawilfy Team", email = "team@crawilfy.com"}
+]
+keywords = ["crawling", "scraping", "automation", "mcp", "web-analysis", "playwright", "api-discovery"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Internet :: WWW/HTTP :: Browsers",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: System :: Networking",
+]
+
+dependencies = [
+    "playwright>=1.40.0",
+    "mcp>=1.0.0",
+    "pydantic>=2.0.0",
+    "aiohttp>=3.9.0",
+    "httpx>=0.25.0",
+    "pyyaml>=6.0",
+    "pydantic-settings>=2.0.0",
+    "python-json-logger>=2.0.0",
+    "tenacity>=8.2.0",
+    "cachetools>=5.3.0",
+    "graphql-core>=3.2.0",
+    "esprima>=4.0.0",
+    "beautifulsoup4>=4.12.0",
+    "lxml>=5.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "black>=23.0.0",
+    "ruff>=0.1.0",
+    "mypy>=1.7.0",
+]
+
+[project.scripts]
+crawl = "src.cli.main:main"
+
+[tool.black]
+line-length = 100
+target-version = ['py310', 'py311', 'py312']
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]
+exclude = ["tests*", "*.tests*", "*.tests.*", "tests.*"]
+
+

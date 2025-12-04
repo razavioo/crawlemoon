@@ -1,0 +1,21 @@
+# IMPORTANT: Markdown File Creation Policy
+
+## For AI Assistants and Code Generators
+
+**DO NOT create any markdown (.md) files unless explicitly requested by the user.**
+
+### Rules:
+1. **Never create markdown files proactively** - Only create .md files when the user explicitly asks you to do so
+2. **README.md is the exception** - README.md is the only markdown file that should exist in this project
+3. **If you need to document something** - Use code comments, docstrings, or ask the user first before creating documentation files
+4. **When in doubt, ask** - If you think a markdown file might be helpful, ask the user first instead of creating it
+
+### What this means:
+- ❌ Do NOT create CHANGELOG.md, CONTRIBUTING.md, DOCUMENTATION.md, etc. unless asked
+- ❌ Do NOT create status files, improvement lists, or planning documents in markdown format
+- ❌ Do NOT create any .md files as part of code generation or refactoring
+- ✅ Only create .md files when the user explicitly requests them
+- ✅ README.md is the only markdown file that should remain in this repository
+
+This file exists to prevent unnecessary markdown file proliferation. Please respect this policy.
+
