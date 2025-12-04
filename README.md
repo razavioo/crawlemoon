@@ -1,184 +1,284 @@
 # Crawilfy MCP Server
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![PyPI version](https://badge.fury.io/py/crawilfy-mcp-server.svg)](https://pypi.org/project/crawilfy-mcp-server/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
-Advanced web crawling platform with deep analysis capabilities, automatic API discovery, and crawler generation. Built as an MCP (Model Context Protocol) server for seamless integration with AI assistants and development tools.
+Advanced web crawling platform with deep analysis capabilities, automatic API discovery, and crawler generation. Built as an MCP (Model Context Protocol) server for seamless integration with AI assistants like **Cursor**, **Claude Code**, and **Windsurf**.
 
-## Features
+---
 
-### 🔧 Core Engine
-- Browser Pool Manager with context isolation
-- Session & Credential Manager with rotation
-- Advanced Cache Layer
+## ⚡ Quick Start (Single Command)
 
-### 🌐 Deep Network Engine
-- Network Interceptor for HTTP/HTTPS/WebSocket
-- API Discovery Engine (REST, GraphQL, Hidden APIs)
-- Request Analyzer with auth and pagination analysis
+### Option 1: Using uvx (Recommended - No Installation Required)
 
-### 📜 JavaScript Analysis
-- Static Code Analyzer
-- Dynamic Runtime Analysis
-- JS Deobfuscator
+The simplest way to use Crawilfy. Just add this to your MCP configuration:
 
-### 🎬 Session Recording & Replay
-- Full Session Recorder
-- State Machine Generator
-- Automatic Crawler Generation
-
-### 🛡️ Security & Anti-Bot
-- Bot Detection Analyzer
-- Stealth Mode
-- Auth Flow Analyzer
-
-### 🔌 MCP Server
-MCP Protocol support with advanced tools for analysis and crawling.
-
-## Quick Start: Setting Up in Cursor or Claude Code
-
-Follow these simple steps to add Crawilfy MCP Server to your AI assistant.
-
-### Step 1: Download and Navigate to the Project
-
-1. Download or clone this project to your computer
-2. Open Terminal (Mac) or Command Prompt (Windows)
-3. Navigate to the project folder:
-   ```bash
-   cd /path/to/crawilfy-mcp-server
-   ```
-   *(Replace `/path/to/` with the actual location where you saved the project)*
-
-### Step 2: Create a Virtual Environment
-
-A virtual environment keeps this project's packages separate from other Python projects on your computer.
-
-**On Mac/Linux:**
-```bash
-python3 -m venv venv
-source venv/bin/activate
+```json
+{
+  "mcpServers": {
+    "crawilfy": {
+      "command": "uvx",
+      "args": ["crawilfy-mcp-server"]
+    }
+  }
+}
 ```
 
-**On Windows:**
-```bash
-python -m venv venv
-venv\Scripts\activate
+> **Note:** Requires [uv](https://docs.astral.sh/uv/getting-started/installation/) to be installed. Install with: `curl -LsSf https://astral.sh/uv/install.sh | sh`
+
+### Option 2: Using pipx
+
+```json
+{
+  "mcpServers": {
+    "crawilfy": {
+      "command": "pipx",
+      "args": ["run", "crawilfy-mcp-server"]
+    }
+  }
+}
 ```
 
-You'll know it worked when you see `(venv)` at the beginning of your terminal prompt.
-
-### Step 3: Install Dependencies
-
-With the virtual environment activated, run:
+### Option 3: Using pip (Global Install)
 
 ```bash
-# Install the package and all required libraries
-pip install -e .
-
-# Install the browser (this may take a few minutes)
+pip install crawilfy-mcp-server
 playwright install chromium
 ```
 
-### Step 4: Configure in Cursor or Claude Code
+Then add to your MCP configuration:
 
-1. **Open Cursor/Claude Code Settings:**
-   - Press `Cmd + ,` (Mac) or `Ctrl + ,` (Windows) to open settings
-   - Search for "MCP" or "Model Context Protocol"
-
-2. **Add the MCP Server:**
-   
-   Click "Add MCP Server" or edit the MCP settings JSON file, then add this configuration:
-
-   ```json
-   {
-     "mcpServers": {
-       "crawilfy": {
-         "command": "/path/to/crawilfy-mcp-server/venv/bin/python",
-         "args": ["-m", "src.mcp.server"],
-         "cwd": "/path/to/crawilfy-mcp-server"
-       }
-     }
-   }
-   ```
-
-   **Important:** Replace `/path/to/crawilfy-mcp-server` with the actual path where you saved the project.
-   
-   **On Windows:** Use `venv\Scripts\python.exe` instead of `venv/bin/python`
-
-3. **Save and Restart:**
-   - Save the configuration
-   - Restart Cursor/Claude Code completely
-   - The server should now be available!
-
-### Step 5: Verify It's Working
-
-After restarting, you should see the Crawilfy tools available in your AI assistant. Try asking:
-- "Can you analyze a website for me?"
-- "Discover APIs on example.com"
-- "Check the health of the crawilfy server"
-
-### Troubleshooting
-
-**Problem:** "python command not found"
-- **Solution:** Use `python3` instead of `python`, or use the full path to your Python installation
-
-**Problem:** "ModuleNotFoundError: No module named 'src'"
-- **Solution:** Make sure you ran `pip install -e .` in Step 3, and that the `cwd` path in your MCP config is correct
-
-**Problem:** "ENOENT" or "spawn error"
-- **Solution:** Check that the path to `venv/bin/python` (or `venv\Scripts\python.exe` on Windows) is correct in your MCP configuration
-
-**Still having issues?** Check the MCP server logs in Cursor/Claude Code settings for detailed error messages.
+```json
+{
+  "mcpServers": {
+    "crawilfy": {
+      "command": "python",
+      "args": ["-m", "src.mcp.server"]
+    }
+  }
+}
+```
 
 ---
 
-## Available Tools
+## 🔧 Where to Add MCP Configuration
 
-Once set up, the MCP server provides these tools you can use through your AI assistant:
+### For Cursor IDE
+1. Open Settings (`Cmd/Ctrl + ,`)
+2. Search for "MCP" 
+3. Click "Edit in settings.json"
+4. Add the configuration under `mcpServers`
 
-#### Analysis Tools
-- `deep_analyze`: Comprehensive deep analysis of a website (network + JS + security)
-- `discover_apis`: Discover all REST and GraphQL APIs including hidden endpoints
-- `introspect_graphql`: Extract complete GraphQL schema using introspection
-- `analyze_websocket`: Intercept and analyze WebSocket connections
-- `analyze_auth`: Analyze authentication flow and mechanisms
-- `detect_protection`: Detect anti-bot systems, CAPTCHAs, and fingerprinting
+### For Claude Code
+1. Open the MCP settings file at `~/.config/claude/mcp_settings.json`
+2. Add the configuration
 
-#### JavaScript Analysis
-- `deobfuscate_js`: Deobfuscate JavaScript code with multiple techniques
-- `extract_from_js`: Extract API endpoints, URLs, constants, and auth logic from JS
-
-#### Session Recording & Crawler Generation
-- `record_session`: Start recording an interactive browser session
-- `stop_recording`: Stop an active recording and save it
-- `list_recordings`: List all available recordings (active and saved)
-- `get_recording_status`: Get status and details of a specific recording
-- `generate_crawler`: Generate crawler script from recording (YAML, Python, Playwright)
-
-#### System Tools
-- `health_check`: Check health status of server, browser pool, and storage
-
-#### Features
-- ✅ **Input Validation**: All tools validate inputs with clear error messages
-- ✅ **Timeout Handling**: Configurable timeouts for all operations
-- ✅ **Retry Logic**: Automatic retries for network operations
-- ✅ **Resource Management**: Proper cleanup of browser contexts and pages
-- ✅ **Recording Storage**: Persistent storage for session recordings
-- ✅ **Error Handling**: Comprehensive error handling with detailed messages
-- ✅ **Configuration**: Environment variable support for all settings
+### For Windsurf
+1. Open Settings → MCP Servers
+2. Add the configuration
 
 ---
 
-## Python API (For Developers)
+## 🛠️ Available Tools (55 Total)
 
-If you want to use Crawilfy programmatically in your own Python code:
+### 🔍 Deep Analysis & Discovery
+| Tool | Description |
+|------|-------------|
+| `deep_analyze` | Comprehensive analysis of a website (network + JS + security) |
+| `discover_apis` | Discover all REST and GraphQL APIs including hidden endpoints |
+| `introspect_graphql` | Extract complete GraphQL schema using introspection |
+| `execute_graphql` | Execute GraphQL queries and mutations |
+| `analyze_websocket` | Intercept and analyze WebSocket connections |
+| `analyze_auth` | Analyze authentication flow and mechanisms |
+| `detect_protection` | Detect anti-bot systems, CAPTCHAs, and fingerprinting |
+| `detect_technology` | Detect technology stack (CMS, frameworks, CDN, analytics) |
+
+### 📜 JavaScript Analysis
+| Tool | Description |
+|------|-------------|
+| `deobfuscate_js` | Deobfuscate JavaScript code with multiple techniques |
+| `extract_from_js` | Extract API endpoints, URLs, constants, and auth logic from JS |
+
+### 🎬 Session Recording & Crawlers
+| Tool | Description |
+|------|-------------|
+| `record_session` | Start recording an interactive browser session |
+| `stop_recording` | Stop an active recording and save it |
+| `list_recordings` | List all available recordings (active and saved) |
+| `get_recording_status` | Get status and details of a specific recording |
+| `delete_recording` | Delete a saved recording |
+| `export_recording` | Export recording to JSON, HAR, or Playwright test format |
+| `generate_crawler` | Generate crawler script from recording (YAML, Python, Playwright) |
+
+### 📄 Content Extraction
+| Tool | Description |
+|------|-------------|
+| `extract_article` | Extract clean article content with intelligent parsing |
+| `convert_to_markdown` | Convert webpage to clean markdown for LLM consumption |
+| `smart_extract` | Extract data using natural language queries (AI-powered) |
+| `extract_links` | Extract all links with filtering options |
+| `extract_forms` | Extract all forms with field details |
+| `extract_metadata` | Extract OG tags, Twitter cards, JSON-LD structured data |
+| `extract_tables` | Extract tables as JSON, CSV, or Markdown |
+| `wait_and_extract` | Wait for dynamic elements and extract content |
+
+### 🌐 Network & Sitemap
+| Tool | Description |
+|------|-------------|
+| `analyze_sitemap` | Analyze sitemap.xml to extract URLs and metadata |
+| `check_robots` | Analyze robots.txt for crawl rules and sitemaps |
+| `monitor_network` | Monitor network traffic for a specified duration |
+
+### 🖥️ Page Interaction
+| Tool | Description |
+|------|-------------|
+| `take_screenshot` | Take full-page or viewport screenshots |
+| `execute_js` | Execute JavaScript on a page and return results |
+| `get_cookies` | Get all cookies from a page/domain |
+| `get_storage` | Get localStorage and sessionStorage |
+| `fill_form` | Automatically fill form fields with provided data |
+
+### 🔐 Session & Proxy Management
+| Tool | Description |
+|------|-------------|
+| `save_session` | Save browser session (cookies, storage) for reuse |
+| `load_session` | Load a previously saved session |
+| `list_sessions` | List all saved sessions |
+| `configure_proxies` | Configure proxy pool with rotation strategies |
+| `get_proxy_stats` | Get proxy pool health and usage statistics |
+| `add_proxy` | Add a proxy to the pool |
+| `remove_proxy` | Remove a proxy from the pool |
+| `test_proxy` | Test a proxy's connectivity |
+
+### 📊 Performance & Analysis
+| Tool | Description |
+|------|-------------|
+| `measure_performance` | Measure page load timing and Core Web Vitals |
+| `analyze_resources` | Analyze all loaded resources (scripts, images, fonts) |
+| `check_accessibility` | Run accessibility checks and report issues |
+| `compare_pages` | Compare two pages for structure/content differences |
+
+### 🛡️ Stealth & Anti-Detection
+| Tool | Description |
+|------|-------------|
+| `stealth_request` | Make HTTP requests with TLS fingerprint impersonation |
+| `solve_captcha` | Detect and solve CAPTCHAs (reCAPTCHA, hCaptcha, Turnstile) |
+
+### ⚙️ Advanced (CDP & Cache)
+| Tool | Description |
+|------|-------------|
+| `execute_cdp` | Execute raw Chrome DevTools Protocol commands |
+| `get_dom_tree` | Get full DOM tree via CDP |
+| `clear_cache` | Clear cached pages, responses, or state snapshots |
+| `get_cache_stats` | Get cache statistics |
+| `configure_rate_limit` | Configure rate limiting per domain |
+| `get_rate_limit_stats` | Get rate limiter statistics |
+
+### 🔧 System
+| Tool | Description |
+|------|-------------|
+| `health_check` | Check health of server, browser pool, and storage |
+
+---
+
+## ✨ Features
+
+- ✅ **55 Powerful Tools** - From deep analysis to crawler generation
+- ✅ **Stealth Mode** - TLS fingerprint impersonation, anti-detection
+- ✅ **AI-Powered Extraction** - Natural language queries for data extraction
+- ✅ **Session Recording** - Record and replay browser sessions
+- ✅ **Auto Crawler Generation** - Generate Python/Playwright/YAML crawlers
+- ✅ **Proxy Pool** - Rotation strategies, health checking
+- ✅ **Rate Limiting** - Per-domain rate limits with backoff
+- ✅ **CAPTCHA Solving** - reCAPTCHA, hCaptcha, Cloudflare Turnstile
+- ✅ **Technology Detection** - Detect CMS, frameworks, CDNs
+- ✅ **Performance Metrics** - Core Web Vitals, resource analysis
+- ✅ **Accessibility Checks** - Automated a11y auditing
+
+---
+
+## 🔧 Configuration (Optional)
+
+Customize behavior with environment variables:
+
+```json
+{
+  "mcpServers": {
+    "crawilfy": {
+      "command": "uvx",
+      "args": ["crawilfy-mcp-server"],
+      "env": {
+        "CRAWILFY_HEADLESS": "true",
+        "CRAWILFY_BROWSER": "chromium",
+        "CRAWILFY_NAV_TIMEOUT": "30.0",
+        "CRAWILFY_OP_TIMEOUT": "60.0",
+        "CRAWILFY_POOL_SIZE": "5",
+        "CRAWILFY_RATE_LIMIT_RPS": "1.0",
+        "CRAWILFY_PROXIES": "http://proxy1:8080,http://proxy2:8080",
+        "OPENAI_API_KEY": "sk-..."
+      }
+    }
+  }
+}
+```
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `CRAWILFY_HEADLESS` | Run browser in background | `true` |
+| `CRAWILFY_BROWSER` | Browser type (chromium/firefox/webkit) | `chromium` |
+| `CRAWILFY_NAV_TIMEOUT` | Page load timeout (seconds) | `30.0` |
+| `CRAWILFY_OP_TIMEOUT` | Operation timeout (seconds) | `60.0` |
+| `CRAWILFY_POOL_SIZE` | Max browser instances | `5` |
+| `CRAWILFY_RATE_LIMIT_RPS` | Requests per second | `1.0` |
+| `CRAWILFY_PROXIES` | Comma-separated proxy URLs | - |
+| `OPENAI_API_KEY` | For AI-powered smart extraction | - |
+
+---
+
+## 📦 Manual Installation (For Development)
+
+```bash
+# Clone the repository
+git clone https://github.com/emad-dev/crawilfy-mcp-server.git
+cd crawilfy-mcp-server
+
+# Create virtual environment
+python3 -m venv venv
+source venv/bin/activate  # Windows: venv\Scripts\activate
+
+# Install with dependencies
+pip install -e .
+
+# Install browser
+playwright install chromium
+```
+
+Then configure MCP with local path:
+
+```json
+{
+  "mcpServers": {
+    "crawilfy": {
+      "command": "/path/to/crawilfy-mcp-server/venv/bin/python",
+      "args": ["-m", "src.mcp.server"],
+      "cwd": "/path/to/crawilfy-mcp-server"
+    }
+  }
+}
+```
+
+---
+
+## 💻 Python API
+
+Use Crawilfy programmatically in your own code:
 
 ```python
 import asyncio
 from src.core.browser.pool import BrowserPool
 from src.core.browser.stealth import create_stealth_context
-from src.intelligence.network.interceptor import DeepNetworkInterceptor
 from src.intelligence.network.api_discovery import APIDiscoveryEngine
 
 async def analyze_site(url):
@@ -189,20 +289,10 @@ async def analyze_site(url):
         context = await create_stealth_context(pool)
         page = await context.new_page()
         
-        interceptor = DeepNetworkInterceptor()
-        await interceptor.start_intercepting(page)
-        
         await page.goto(url)
         
-        requests = await interceptor.capture_all_requests()
-        responses = await interceptor.capture_all_responses()
+        # Your analysis code here
         
-        discovery = APIDiscoveryEngine()
-        endpoints = discovery.detect_rest_endpoints(requests, responses)
-        
-        print(f"Found {len(endpoints)} API endpoints")
-        
-        await page.close()
         await context.close()
     finally:
         await pool.close()
@@ -210,126 +300,50 @@ async def analyze_site(url):
 asyncio.run(analyze_site("https://example.com"))
 ```
 
-## Project Structure
-
-```
-src/
-├── core/           # Core engine
-│   ├── browser/    # Browser management
-│   ├── session/    # Session management
-│   └── cache/      # Cache layer
-├── intelligence/   # Analysis engines
-│   ├── network/    # Network analysis
-│   ├── js/         # JavaScript analysis
-│   ├── security/   # Security analysis
-│   ├── recorder/   # Session recording
-│   └── generator/  # Crawler generation
-├── mcp/            # MCP Server
-├── cli/            # Command line interface
-└── crawlers/       # Generated crawlers
-```
-
-## Advanced Configuration (Optional)
-
-The MCP server works with default settings, but you can customize it by adding environment variables to your MCP configuration:
-
-```json
-{
-  "mcpServers": {
-    "crawilfy": {
-      "command": "/path/to/crawilfy-mcp-server/venv/bin/python",
-      "args": ["-m", "src.mcp.server"],
-      "cwd": "/path/to/crawilfy-mcp-server",
-      "env": {
-        "CRAWILFY_HEADLESS": "true",
-        "CRAWILFY_BROWSER": "chromium",
-        "CRAWILFY_NAV_TIMEOUT": "30.0",
-        "CRAWILFY_OP_TIMEOUT": "60.0"
-      }
-    }
-  }
-}
-```
-
-**Available settings:**
-- `CRAWILFY_HEADLESS`: Run browser in background (`true` or `false`, default: `true`)
-- `CRAWILFY_BROWSER`: Browser type (`chromium`, `firefox`, or `webkit`, default: `chromium`)
-- `CRAWILFY_NAV_TIMEOUT`: Page load timeout in seconds (default: `30.0`)
-- `CRAWILFY_OP_TIMEOUT`: Operation timeout in seconds (default: `60.0`)
-- `CRAWILFY_POOL_SIZE`: Maximum number of browsers (default: `5`)
-
-Most users don't need to change these settings.
-
 ---
 
-## For Developers
-
-### Development Setup
-
-If you're contributing to or modifying this project:
-
-```bash
-# Create virtual environment
-python3 -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-
-# Install in development mode with dev dependencies
-pip install -e ".[dev]"
-
-# Install Playwright browsers
-playwright install chromium
-```
-
-### Command Line Interface
-
-You can also use Crawilfy from the command line:
+## 🧪 CLI Usage
 
 ```bash
 # Deep analysis
-python -m src.cli.main deep-analyze https://example.com --full
+crawl deep-analyze https://example.com --full
 
 # Discover APIs
-python -m src.cli.main discover-apis https://example.com --include-hidden
+crawl discover-apis https://example.com --include-hidden
 
 # Record session
-python -m src.cli.main record https://example.com --output session.json
+crawl record https://example.com --output session.json
 
 # Generate crawler
-python -m src.cli.main generate --from-recording session.json --output crawler.yaml
+crawl generate --from-recording session.json --output crawler.yaml
 ```
 
-### Running Tests
+---
 
-```bash
-# Run all tests
-pytest
-
-# Run with coverage
-pytest --cov=src --cov-report=html
-
-# Run specific test module
-pytest tests/test_browser_pool.py
-pytest tests/test_mcp_server.py
-pytest tests/test_recording_storage.py
-```
-
-### Code Quality
-
-```bash
-# Format code
-black src tests
-
-# Lint code
-ruff check src tests
-
-# Type checking
-mypy src
-```
-
-## Contributing
+## 🤝 Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
 
-## License
+```bash
+# Development setup
+pip install -e ".[dev]"
 
-MIT License - see LICENSE file for details.
+# Run tests
+pytest
+
+# Code formatting
+black src tests
+ruff check src tests
+```
+
+---
+
+## 📄 License
+
+MIT License - see [LICENSE](LICENSE) file for details.
+
+---
+
+<p align="center">
+  Made with ❤️ by <a href="https://emad.dev">emad.dev</a>
+</p>

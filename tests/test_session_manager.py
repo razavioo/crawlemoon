@@ -9,7 +9,8 @@ from src.core.session.manager import SessionManager, Session, Credential, AuthTy
 @pytest.mark.asyncio
 async def test_session_manager_initialization(session_manager):
     """Test session manager initialization."""
-    assert session_manager.storage_path == ".test_sessions"
+    from pathlib import Path
+    assert session_manager.storage_path == Path(".test_sessions")
     assert len(session_manager._credentials) == 0
     assert len(session_manager._sessions) == 0
 
@@ -260,5 +261,75 @@ async def test_rotate_credential(session_manager):
     
     assert rotated is not None
     assert rotated.id == "cred_2"  # Best health score
+
+
+@pytest.mark.asyncio
+async def test_list_sessions(session_manager):
+    """Test listing all sessions."""
+    await session_manager.create_session(session_id="session1")
+    await session_manager.create_session(session_id="session2")
+    
+    sessions = await session_manager.list_sessions()
+    
+    assert len(sessions) == 2
+
+
+@pytest.mark.asyncio
+async def test_delete_session(session_manager):
+    """Test session deletion with cleanup."""
+    session = await session_manager.create_session(session_id="to_delete")
+    
+    result = await session_manager.delete_session("to_delete")
+    
+    assert result["status"] == "deleted"
+    assert await session_manager.get_session("to_delete") is None
+
+
+@pytest.mark.asyncio
+async def test_delete_session_not_found(session_manager):
+    """Test deleting non-existent session."""
+    result = await session_manager.delete_session("nonexistent")
+    
+    assert "error" in result
+
+
+def test_get_user_data_dir():
+    """Test browser profile paths."""
+    from pathlib import Path
+    
+    manager = SessionManager(
+        storage_path=".test_sessions",
+        user_data_dir="/tmp/user_data"
+    )
+    
+    path = manager.get_user_data_dir("session1")
+    
+    assert path == Path("/tmp/user_data/session1")
+
+
+def test_get_user_data_dir_none():
+    """Test user data dir when not configured."""
+    manager = SessionManager(storage_path=".test_sessions")
+    
+    path = manager.get_user_data_dir("session1")
+    
+    assert path is None
+
+
+@pytest.mark.asyncio
+async def test_persist_and_load(session_manager):
+    """Test disk persistence."""
+    # Create session with data
+    session = await session_manager.create_session(session_id="persist_test")
+    session.cookies["test_cookie"] = "test_value"
+    await session_manager.update_session(session)
+    
+    # Persist to disk
+    await session_manager.persist_to_disk()
+    
+    # Verify file exists
+    import os
+    sessions_file = session_manager.storage_path / "sessions.json"
+    assert os.path.exists(sessions_file)
 
 

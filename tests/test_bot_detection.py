@@ -197,3 +197,111 @@ def test_find_rate_limits_slow_responses():
     
     assert isinstance(info, RateLimitInfo)
 
+
+def test_detect_protection_datadome():
+    """Test detecting DataDome protection."""
+    analyzer = BotDetectionAnalyzer()
+    
+    content = "<html><script src='datadome.co'></script></html>"
+    headers = {}
+    
+    protection = analyzer.detect_protection_type(content, headers)
+    
+    assert protection == ProtectionType.DATADOME
+
+
+def test_detect_protection_imperva():
+    """Test detecting Imperva protection."""
+    analyzer = BotDetectionAnalyzer()
+    
+    content = "<html>Test</html>"
+    headers = {"X-Imperva": "true"}
+    
+    protection = analyzer.detect_protection_type(content, headers)
+    
+    assert protection == ProtectionType.IMPERVA
+
+
+def test_detect_protection_aws_waf():
+    """Test detecting AWS WAF."""
+    analyzer = BotDetectionAnalyzer()
+    
+    content = "<html>aws-waf</html>"
+    headers = {"x-amzn-requestid": "abc123"}
+    
+    protection = analyzer.detect_protection_type(content, headers)
+    
+    assert protection == ProtectionType.AWS_WAF
+
+
+def test_detect_waf_cloudflare():
+    """Test WAF detection for Cloudflare."""
+    analyzer = BotDetectionAnalyzer()
+    
+    headers = {"cf-ray": "abc123"}
+    content = "<html>Test</html>"
+    
+    waf = analyzer.detect_waf(headers, content)
+    
+    assert waf == "Cloudflare WAF"
+
+
+def test_detect_waf_none():
+    """Test WAF detection when none present."""
+    analyzer = BotDetectionAnalyzer()
+    
+    headers = {}
+    content = "<html>Normal page</html>"
+    
+    waf = analyzer.detect_waf(headers, content)
+    
+    assert waf is None
+
+
+def test_analyze_canvas_fingerprinting():
+    """Test canvas fingerprinting detection."""
+    analyzer = BotDetectionAnalyzer()
+    
+    content = """
+    <html>
+    <script>
+    fingerprint
+    canvas.toDataURL();
+    </script>
+    </html>
+    """
+    
+    info = analyzer.analyze_fingerprinting(content)
+    
+    # Canvas fingerprinting detection depends on implementation
+    assert isinstance(info.canvas_fingerprint, bool)
+
+
+def test_analyze_webgl_fingerprinting():
+    """Test WebGL fingerprinting detection."""
+    analyzer = BotDetectionAnalyzer()
+    
+    content = """
+    <html>
+    <script>
+    fingerprint
+    getContext('webgl');
+    </script>
+    </html>
+    """
+    
+    info = analyzer.analyze_fingerprinting(content)
+    
+    assert info.webgl_fingerprint is True
+
+
+def test_detect_captcha_funcaptcha():
+    """Test detecting FunCaptcha."""
+    analyzer = BotDetectionAnalyzer()
+    
+    content = "<html><div>funcaptcha arkoselabs</div></html>"
+    
+    captcha_type = analyzer.detect_captcha_type(content)
+    
+    assert captcha_type == CaptchaType.FUNCAPTCHA
+

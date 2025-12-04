@@ -137,4 +137,55 @@ async def test_browser_pool_cleanup(browser_pool):
     await playwright.stop()
 
 
+@pytest.mark.asyncio
+async def test_acquire_with_url_for_proxy_selection(browser_pool):
+    """Test that URL is passed for proxy selection."""
+    # Acquire with URL parameter
+    context = await browser_pool.acquire(url="https://example.com")
+    
+    assert context is not None
+
+
+@pytest.mark.asyncio
+async def test_set_proxy_pool(browser_pool):
+    """Test dynamic proxy pool configuration."""
+    from src.core.browser.proxy_pool import ProxyPool
+    
+    proxy_pool = ProxyPool(proxies=["http://proxy:8080"])
+    browser_pool.set_proxy_pool(proxy_pool)
+    
+    assert browser_pool.proxy_pool is not None
+    assert browser_pool.proxy_pool == proxy_pool
+
+
+@pytest.mark.asyncio
+async def test_concurrent_acquire(browser_pool):
+    """Test thread-safety under concurrent access."""
+    async def acquire_task():
+        return await browser_pool.acquire()
+    
+    # Run multiple concurrent acquisitions
+    tasks = [acquire_task() for _ in range(5)]
+    results = await asyncio.gather(*tasks)
+    
+    # All should succeed
+    assert all(ctx is not None for ctx in results)
+
+
+@pytest.mark.asyncio
+async def test_pool_exhaustion_recovery(browser_pool):
+    """Test behavior when pool is full and instances expire."""
+    # Fill the pool
+    for _ in range(browser_pool.max_size):
+        await browser_pool.acquire()
+    
+    # Mark all instances as expired
+    for instance in browser_pool._instances:
+        instance.created_at = datetime.now() - timedelta(minutes=120)
+    
+    # Should still be able to acquire (cleanup + create new)
+    context = await browser_pool.acquire()
+    assert context is not None
+
+
 

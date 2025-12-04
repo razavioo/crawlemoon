@@ -14,9 +14,11 @@ from mcp.types import Tool, TextContent
 from ..core.browser.pool import BrowserPool
 from ..core.browser.stealth import create_stealth_context
 from ..core.browser.proxy_pool import ProxyPool, RotationStrategy
+from ..core.browser.cdp import CDPClient
 from ..core.rate_limiter import RateLimiter
 from ..core.recording_storage import RecordingStorage
 from ..core.session.manager import SessionManager
+from ..core.cache.manager import CacheManager
 from ..intelligence.network.interceptor import DeepNetworkInterceptor
 from ..intelligence.network.api_discovery import APIDiscoveryEngine
 from ..intelligence.network.analyzer import RequestAnalyzer
@@ -78,6 +80,7 @@ smart_extractor = get_smart_extractor()
 technology_detector = get_technology_detector()
 recording_storage = RecordingStorage(storage_dir=config.recording_storage_dir)
 rate_limiter = RateLimiter()
+cache_manager = CacheManager(max_size=1000, default_ttl_seconds=3600)
 
 # Configure rate limiter from environment
 default_rps = float(os.getenv("CRAWILFY_RATE_LIMIT_RPS", "1.0"))
@@ -596,6 +599,505 @@ async def list_tools() -> List[Tool]:
                 "required": ["url"]
             }
         ),
+        # Cache Management Tools
+        Tool(
+            name="clear_cache",
+            description="Clear cached pages, responses, or state snapshots. Useful for forcing fresh data retrieval.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "cache_type": {
+                        "type": "string",
+                        "enum": ["page", "response", "state", "all"],
+                        "description": "Type of cache to clear (default: all)",
+                        "default": "all"
+                    }
+                }
+            }
+        ),
+        Tool(
+            name="get_cache_stats",
+            description="Get cache statistics including size, hit rates, and memory usage.",
+            inputSchema={
+                "type": "object",
+                "properties": {}
+            }
+        ),
+        # Rate Limiter Configuration Tools
+        Tool(
+            name="configure_rate_limit",
+            description="Configure rate limiting for specific domains or globally. Prevents getting blocked by aggressive crawling.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "domain": {
+                        "type": "string",
+                        "description": "Domain to configure (leave empty for global/default)"
+                    },
+                    "requests_per_second": {
+                        "type": "number",
+                        "description": "Maximum requests per second (default: 1.0)",
+                        "default": 1.0
+                    },
+                    "requests_per_minute": {
+                        "type": "integer",
+                        "description": "Maximum requests per minute (optional)"
+                    },
+                    "requests_per_hour": {
+                        "type": "integer",
+                        "description": "Maximum requests per hour (optional)"
+                    }
+                }
+            }
+        ),
+        Tool(
+            name="get_rate_limit_stats",
+            description="Get current rate limiter statistics including domains in backoff and request counts.",
+            inputSchema={
+                "type": "object",
+                "properties": {}
+            }
+        ),
+        # Proxy Management Tools
+        Tool(
+            name="get_proxy_stats",
+            description="Get proxy pool statistics including health status, usage counts, and success rates.",
+            inputSchema={
+                "type": "object",
+                "properties": {}
+            }
+        ),
+        Tool(
+            name="add_proxy",
+            description="Add a single proxy to the pool.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "proxy_url": {
+                        "type": "string",
+                        "description": "Proxy URL (e.g., http://proxy:8080, socks5://proxy:1080)"
+                    },
+                    "username": {
+                        "type": "string",
+                        "description": "Optional proxy username"
+                    },
+                    "password": {
+                        "type": "string",
+                        "description": "Optional proxy password"
+                    }
+                },
+                "required": ["proxy_url"]
+            }
+        ),
+        Tool(
+            name="remove_proxy",
+            description="Remove a proxy from the pool.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "proxy_url": {
+                        "type": "string",
+                        "description": "Proxy URL to remove"
+                    }
+                },
+                "required": ["proxy_url"]
+            }
+        ),
+        Tool(
+            name="test_proxy",
+            description="Test a specific proxy's connectivity and health.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "proxy_url": {
+                        "type": "string",
+                        "description": "Proxy URL to test"
+                    }
+                },
+                "required": ["proxy_url"]
+            }
+        ),
+        # GraphQL Tools
+        Tool(
+            name="execute_graphql",
+            description="Execute a GraphQL query or mutation against an endpoint.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "endpoint": {
+                        "type": "string",
+                        "description": "GraphQL endpoint URL"
+                    },
+                    "query": {
+                        "type": "string",
+                        "description": "GraphQL query or mutation"
+                    },
+                    "variables": {
+                        "type": "object",
+                        "description": "Optional query variables"
+                    }
+                },
+                "required": ["endpoint", "query"]
+            }
+        ),
+        # Page Interaction Tools
+        Tool(
+            name="execute_js",
+            description="Execute JavaScript code on a page and return the result.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "url": {
+                        "type": "string",
+                        "description": "URL of the page to execute JS on"
+                    },
+                    "script": {
+                        "type": "string",
+                        "description": "JavaScript code to execute"
+                    },
+                    "wait_for": {
+                        "type": "string",
+                        "description": "Optional selector or 'load'/'networkidle' to wait for"
+                    }
+                },
+                "required": ["url", "script"]
+            }
+        ),
+        Tool(
+            name="get_cookies",
+            description="Get all cookies from a page/domain.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "url": {
+                        "type": "string",
+                        "description": "URL to get cookies from"
+                    }
+                },
+                "required": ["url"]
+            }
+        ),
+        Tool(
+            name="get_storage",
+            description="Get localStorage and sessionStorage from a page.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "url": {
+                        "type": "string",
+                        "description": "URL to get storage from"
+                    }
+                },
+                "required": ["url"]
+            }
+        ),
+        # Recording Management Tools
+        Tool(
+            name="delete_recording",
+            description="Delete a saved recording from storage.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "recording_id": {
+                        "type": "string",
+                        "description": "ID of the recording to delete"
+                    }
+                },
+                "required": ["recording_id"]
+            }
+        ),
+        Tool(
+            name="export_recording",
+            description="Export a recording to various formats (JSON, HAR, Playwright test).",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "recording_id": {
+                        "type": "string",
+                        "description": "ID of the recording to export"
+                    },
+                    "format": {
+                        "type": "string",
+                        "enum": ["json", "har", "playwright_test"],
+                        "description": "Export format (default: json)",
+                        "default": "json"
+                    }
+                },
+                "required": ["recording_id"]
+            }
+        ),
+        # Content Extraction Tools
+        Tool(
+            name="extract_links",
+            description="Extract all links from a webpage with optional filtering.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "url": {
+                        "type": "string",
+                        "description": "URL of the page to extract links from"
+                    },
+                    "filter_internal": {
+                        "type": "boolean",
+                        "description": "Only return internal links (same domain)",
+                        "default": False
+                    },
+                    "filter_external": {
+                        "type": "boolean",
+                        "description": "Only return external links (different domain)",
+                        "default": False
+                    },
+                    "include_text": {
+                        "type": "boolean",
+                        "description": "Include link text in results",
+                        "default": True
+                    }
+                },
+                "required": ["url"]
+            }
+        ),
+        Tool(
+            name="extract_forms",
+            description="Extract all forms from a webpage including fields, actions, and methods.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "url": {
+                        "type": "string",
+                        "description": "URL of the page to extract forms from"
+                    }
+                },
+                "required": ["url"]
+            }
+        ),
+        Tool(
+            name="extract_metadata",
+            description="Extract page metadata including Open Graph tags, Twitter cards, structured data (JSON-LD), and meta tags.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "url": {
+                        "type": "string",
+                        "description": "URL of the page to extract metadata from"
+                    }
+                },
+                "required": ["url"]
+            }
+        ),
+        Tool(
+            name="extract_tables",
+            description="Extract all tables from a webpage as structured data.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "url": {
+                        "type": "string",
+                        "description": "URL of the page to extract tables from"
+                    },
+                    "format": {
+                        "type": "string",
+                        "enum": ["json", "csv", "markdown"],
+                        "description": "Output format for tables (default: json)",
+                        "default": "json"
+                    }
+                },
+                "required": ["url"]
+            }
+        ),
+        # CDP Tools
+        Tool(
+            name="execute_cdp",
+            description="Execute a Chrome DevTools Protocol (CDP) command directly. For advanced browser automation.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "url": {
+                        "type": "string",
+                        "description": "URL to navigate to before executing CDP command"
+                    },
+                    "method": {
+                        "type": "string",
+                        "description": "CDP method to call (e.g., 'Network.enable', 'DOM.getDocument')"
+                    },
+                    "params": {
+                        "type": "object",
+                        "description": "Optional parameters for the CDP command"
+                    }
+                },
+                "required": ["url", "method"]
+            }
+        ),
+        Tool(
+            name="get_dom_tree",
+            description="Get the full DOM tree of a page using CDP.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "url": {
+                        "type": "string",
+                        "description": "URL of the page"
+                    },
+                    "depth": {
+                        "type": "integer",
+                        "description": "Depth of DOM tree to retrieve (-1 for full tree)",
+                        "default": -1
+                    }
+                },
+                "required": ["url"]
+            }
+        ),
+        # Performance and Analysis Tools
+        Tool(
+            name="measure_performance",
+            description="Measure page load performance including timing metrics, resource loading, and Core Web Vitals.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "url": {
+                        "type": "string",
+                        "description": "URL of the page to measure"
+                    }
+                },
+                "required": ["url"]
+            }
+        ),
+        Tool(
+            name="analyze_resources",
+            description="Analyze all resources loaded by a page (scripts, styles, images, fonts, etc.).",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "url": {
+                        "type": "string",
+                        "description": "URL of the page to analyze"
+                    }
+                },
+                "required": ["url"]
+            }
+        ),
+        Tool(
+            name="check_accessibility",
+            description="Run accessibility checks on a webpage and report issues.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "url": {
+                        "type": "string",
+                        "description": "URL of the page to check"
+                    }
+                },
+                "required": ["url"]
+            }
+        ),
+        Tool(
+            name="compare_pages",
+            description="Compare two pages and highlight differences in structure, content, or visual appearance.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "url1": {
+                        "type": "string",
+                        "description": "First URL to compare"
+                    },
+                    "url2": {
+                        "type": "string",
+                        "description": "Second URL to compare"
+                    },
+                    "compare_type": {
+                        "type": "string",
+                        "enum": ["structure", "content", "both"],
+                        "description": "Type of comparison (default: both)",
+                        "default": "both"
+                    }
+                },
+                "required": ["url1", "url2"]
+            }
+        ),
+        Tool(
+            name="monitor_network",
+            description="Monitor network traffic on a page for a specified duration. Captures all requests and responses.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "url": {
+                        "type": "string",
+                        "description": "URL of the page to monitor"
+                    },
+                    "duration": {
+                        "type": "number",
+                        "description": "Duration in seconds to monitor (default: 10)",
+                        "default": 10
+                    },
+                    "filter_type": {
+                        "type": "string",
+                        "enum": ["all", "xhr", "fetch", "script", "image", "stylesheet"],
+                        "description": "Filter requests by type (default: all)",
+                        "default": "all"
+                    }
+                },
+                "required": ["url"]
+            }
+        ),
+        Tool(
+            name="fill_form",
+            description="Automatically fill a form on a page with provided data.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "url": {
+                        "type": "string",
+                        "description": "URL of the page containing the form"
+                    },
+                    "form_selector": {
+                        "type": "string",
+                        "description": "CSS selector for the form (optional, uses first form if not specified)"
+                    },
+                    "data": {
+                        "type": "object",
+                        "description": "Form data as key-value pairs (field name/id -> value)"
+                    },
+                    "submit": {
+                        "type": "boolean",
+                        "description": "Submit the form after filling (default: false)",
+                        "default": False
+                    }
+                },
+                "required": ["url", "data"]
+            }
+        ),
+        Tool(
+            name="wait_and_extract",
+            description="Wait for specific elements to appear on a page and extract their content. Useful for dynamic/AJAX content.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "url": {
+                        "type": "string",
+                        "description": "URL of the page"
+                    },
+                    "selector": {
+                        "type": "string",
+                        "description": "CSS selector to wait for and extract"
+                    },
+                    "timeout": {
+                        "type": "number",
+                        "description": "Timeout in seconds (default: 30)",
+                        "default": 30
+                    },
+                    "extract_type": {
+                        "type": "string",
+                        "enum": ["text", "html", "attribute"],
+                        "description": "What to extract (default: text)",
+                        "default": "text"
+                    },
+                    "attribute": {
+                        "type": "string",
+                        "description": "Attribute name if extract_type is 'attribute'"
+                    }
+                },
+                "required": ["url", "selector"]
+            }
+        ),
     ]
 
 
@@ -652,6 +1154,33 @@ async def call_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
             "smart_extract": handle_smart_extract,
             "convert_to_markdown": handle_convert_to_markdown,
             "stealth_request": handle_stealth_request,
+            "clear_cache": handle_clear_cache,
+            "get_cache_stats": handle_get_cache_stats,
+            "configure_rate_limit": handle_configure_rate_limit,
+            "get_rate_limit_stats": handle_get_rate_limit_stats,
+            "get_proxy_stats": handle_get_proxy_stats,
+            "add_proxy": handle_add_proxy,
+            "remove_proxy": handle_remove_proxy,
+            "test_proxy": handle_test_proxy,
+            "execute_graphql": handle_execute_graphql,
+            "execute_js": handle_execute_js,
+            "get_cookies": handle_get_cookies,
+            "get_storage": handle_get_storage,
+            "delete_recording": handle_delete_recording,
+            "export_recording": handle_export_recording,
+            "extract_links": handle_extract_links,
+            "extract_forms": handle_extract_forms,
+            "extract_metadata": handle_extract_metadata,
+            "extract_tables": handle_extract_tables,
+            "execute_cdp": handle_execute_cdp,
+            "get_dom_tree": handle_get_dom_tree,
+            "measure_performance": handle_measure_performance,
+            "analyze_resources": handle_analyze_resources,
+            "check_accessibility": handle_check_accessibility,
+            "compare_pages": handle_compare_pages,
+            "monitor_network": handle_monitor_network,
+            "fill_form": handle_fill_form,
+            "wait_and_extract": handle_wait_and_extract,
         }
         
         handler = handler_map.get(name)
@@ -1841,6 +2370,1472 @@ async def handle_stealth_request(arguments: Dict[str, Any]) -> Dict[str, Any]:
         raise
 
 
+# ============================================================================
+# Cache Management Handlers
+# ============================================================================
+
+async def handle_clear_cache(arguments: Dict[str, Any]) -> Dict[str, Any]:
+    """Handle clear_cache tool."""
+    cache_type = arguments.get("cache_type", "all")
+    
+    try:
+        if cache_type == "all":
+            cache_manager.clear()
+        else:
+            cache_manager.clear(cache_type)
+        
+        return {
+            "status": "cleared",
+            "cache_type": cache_type,
+            "timestamp": datetime.now().isoformat(),
+        }
+    except Exception as e:
+        logger.error(f"Error clearing cache: {e}", exc_info=True)
+        raise
+
+
+async def handle_get_cache_stats(arguments: Dict[str, Any]) -> Dict[str, Any]:
+    """Handle get_cache_stats tool."""
+    try:
+        stats = cache_manager.get_stats()
+        return {
+            **stats,
+            "timestamp": datetime.now().isoformat(),
+        }
+    except Exception as e:
+        logger.error(f"Error getting cache stats: {e}", exc_info=True)
+        raise
+
+
+# ============================================================================
+# Rate Limiter Configuration Handlers
+# ============================================================================
+
+async def handle_configure_rate_limit(arguments: Dict[str, Any]) -> Dict[str, Any]:
+    """Handle configure_rate_limit tool."""
+    domain = arguments.get("domain")
+    requests_per_second = arguments.get("requests_per_second", 1.0)
+    requests_per_minute = arguments.get("requests_per_minute")
+    requests_per_hour = arguments.get("requests_per_hour")
+    
+    try:
+        if domain:
+            rate_limiter.set_domain_rate_limit(
+                domain=domain,
+                requests_per_second=requests_per_second,
+                requests_per_minute=requests_per_minute,
+                requests_per_hour=requests_per_hour,
+            )
+            return {
+                "status": "configured",
+                "type": "domain",
+                "domain": domain,
+                "requests_per_second": requests_per_second,
+                "requests_per_minute": requests_per_minute,
+                "requests_per_hour": requests_per_hour,
+                "timestamp": datetime.now().isoformat(),
+            }
+        else:
+            rate_limiter.set_default_rate_limit(
+                requests_per_second=requests_per_second,
+                requests_per_minute=requests_per_minute,
+                requests_per_hour=requests_per_hour,
+            )
+            return {
+                "status": "configured",
+                "type": "default",
+                "requests_per_second": requests_per_second,
+                "requests_per_minute": requests_per_minute,
+                "requests_per_hour": requests_per_hour,
+                "timestamp": datetime.now().isoformat(),
+            }
+    except Exception as e:
+        logger.error(f"Error configuring rate limit: {e}", exc_info=True)
+        raise
+
+
+async def handle_get_rate_limit_stats(arguments: Dict[str, Any]) -> Dict[str, Any]:
+    """Handle get_rate_limit_stats tool."""
+    try:
+        stats = rate_limiter.get_stats()
+        return {
+            **stats,
+            "timestamp": datetime.now().isoformat(),
+        }
+    except Exception as e:
+        logger.error(f"Error getting rate limit stats: {e}", exc_info=True)
+        raise
+
+
+# ============================================================================
+# Proxy Management Handlers
+# ============================================================================
+
+async def handle_get_proxy_stats(arguments: Dict[str, Any]) -> Dict[str, Any]:
+    """Handle get_proxy_stats tool."""
+    try:
+        if _proxy_pool:
+            stats = _proxy_pool.get_stats()
+            return {
+                **stats,
+                "timestamp": datetime.now().isoformat(),
+            }
+        else:
+            return {
+                "status": "no_proxy_pool",
+                "message": "No proxy pool configured. Use configure_proxies to set up proxies.",
+                "timestamp": datetime.now().isoformat(),
+            }
+    except Exception as e:
+        logger.error(f"Error getting proxy stats: {e}", exc_info=True)
+        raise
+
+
+async def handle_add_proxy(arguments: Dict[str, Any]) -> Dict[str, Any]:
+    """Handle add_proxy tool."""
+    global _proxy_pool
+    
+    proxy_url = arguments["proxy_url"]
+    username = arguments.get("username")
+    password = arguments.get("password")
+    
+    try:
+        if not _proxy_pool:
+            # Create a new proxy pool if none exists
+            _proxy_pool = ProxyPool(
+                proxies=[proxy_url],
+                rotation_strategy=RotationStrategy.ROUND_ROBIN,
+            )
+            browser_pool.set_proxy_pool(_proxy_pool)
+        else:
+            _proxy_pool.add_proxy(proxy_url, username, password)
+        
+        return {
+            "status": "added",
+            "proxy_url": proxy_url,
+            "total_proxies": len(_proxy_pool.proxies) if _proxy_pool else 0,
+            "timestamp": datetime.now().isoformat(),
+        }
+    except Exception as e:
+        logger.error(f"Error adding proxy: {e}", exc_info=True)
+        raise
+
+
+async def handle_remove_proxy(arguments: Dict[str, Any]) -> Dict[str, Any]:
+    """Handle remove_proxy tool."""
+    proxy_url = arguments["proxy_url"]
+    
+    try:
+        if not _proxy_pool:
+            return {
+                "error": "No proxy pool configured",
+                "proxy_url": proxy_url,
+            }
+        
+        removed = _proxy_pool.remove_proxy(proxy_url)
+        
+        return {
+            "status": "removed" if removed else "not_found",
+            "proxy_url": proxy_url,
+            "total_proxies": len(_proxy_pool.proxies),
+            "timestamp": datetime.now().isoformat(),
+        }
+    except Exception as e:
+        logger.error(f"Error removing proxy: {e}", exc_info=True)
+        raise
+
+
+async def handle_test_proxy(arguments: Dict[str, Any]) -> Dict[str, Any]:
+    """Handle test_proxy tool."""
+    proxy_url = arguments["proxy_url"]
+    
+    try:
+        # Create a temporary proxy object for testing
+        from urllib.parse import urlparse
+        from ..core.browser.proxy_pool import Proxy, ProxyType
+        
+        parsed = urlparse(proxy_url)
+        scheme = parsed.scheme.lower()
+        
+        proxy_type = ProxyType.HTTP
+        if scheme == "https":
+            proxy_type = ProxyType.HTTPS
+        elif scheme == "socks4":
+            proxy_type = ProxyType.SOCKS4
+        elif scheme == "socks5":
+            proxy_type = ProxyType.SOCKS5
+        
+        proxy = Proxy(url=proxy_url, proxy_type=proxy_type)
+        
+        # Create temporary pool for testing
+        temp_pool = ProxyPool(proxies=[], health_check_timeout=10.0)
+        temp_pool.proxies.append(proxy)
+        
+        is_healthy = await temp_pool.health_check(proxy)
+        
+        return {
+            "proxy_url": proxy_url,
+            "healthy": is_healthy,
+            "proxy_type": proxy_type.value,
+            "timestamp": datetime.now().isoformat(),
+        }
+    except Exception as e:
+        logger.error(f"Error testing proxy: {e}", exc_info=True)
+        return {
+            "proxy_url": proxy_url,
+            "healthy": False,
+            "error": str(e),
+            "timestamp": datetime.now().isoformat(),
+        }
+
+
+# ============================================================================
+# GraphQL Handlers
+# ============================================================================
+
+async def handle_execute_graphql(arguments: Dict[str, Any]) -> Dict[str, Any]:
+    """Handle execute_graphql tool."""
+    from ..intelligence.network.graphql import GraphQLClient
+    
+    endpoint = arguments["endpoint"]
+    query = arguments["query"]
+    variables = arguments.get("variables", {})
+    
+    try:
+        client = GraphQLClient(endpoint)
+        result = await client.query(query, variables)
+        
+        if result:
+            return {
+                "endpoint": endpoint,
+                "status": "success",
+                "data": result.get("data"),
+                "errors": result.get("errors"),
+                "timestamp": datetime.now().isoformat(),
+            }
+        else:
+            return {
+                "endpoint": endpoint,
+                "status": "failed",
+                "error": "Query failed or returned no data",
+                "timestamp": datetime.now().isoformat(),
+            }
+    except Exception as e:
+        logger.error(f"Error executing GraphQL query: {e}", exc_info=True)
+        raise
+
+
+# ============================================================================
+# Page Interaction Handlers
+# ============================================================================
+
+@with_retry(max_retries=config.max_retries, delay=config.retry_delay)
+async def handle_execute_js(arguments: Dict[str, Any]) -> Dict[str, Any]:
+    """Handle execute_js tool."""
+    url = arguments["url"]
+    script = arguments["script"]
+    wait_for = arguments.get("wait_for")
+    
+    await rate_limiter.wait_if_needed(url)
+    
+    async with browser_context_manager(url=url) as page:
+        try:
+            wait_until = "networkidle" if config.wait_for_network_idle else "load"
+            response = await page.goto(url, wait_until=wait_until, timeout=config.navigation_timeout * 1000)
+            
+            if response:
+                rate_limiter.record_response(url, response.status)
+            
+            if wait_for and wait_for not in ["load", "networkidle"]:
+                await page.wait_for_selector(wait_for, timeout=10000)
+            
+            result = await page.evaluate(script)
+            
+            return {
+                "url": url,
+                "result": result,
+                "timestamp": datetime.now().isoformat(),
+            }
+        except Exception as e:
+            logger.error(f"Error executing JS on {url}: {e}", exc_info=True)
+            raise
+
+
+@with_retry(max_retries=config.max_retries, delay=config.retry_delay)
+async def handle_get_cookies(arguments: Dict[str, Any]) -> Dict[str, Any]:
+    """Handle get_cookies tool."""
+    url = arguments["url"]
+    
+    await rate_limiter.wait_if_needed(url)
+    
+    async with browser_context_manager(url=url) as page:
+        try:
+            wait_until = "networkidle" if config.wait_for_network_idle else "load"
+            response = await page.goto(url, wait_until=wait_until, timeout=config.navigation_timeout * 1000)
+            
+            if response:
+                rate_limiter.record_response(url, response.status)
+            
+            cookies = await page.context.cookies()
+            
+            return {
+                "url": url,
+                "cookies": [
+                    {
+                        "name": c.get("name"),
+                        "value": c.get("value"),
+                        "domain": c.get("domain"),
+                        "path": c.get("path"),
+                        "expires": c.get("expires"),
+                        "httpOnly": c.get("httpOnly"),
+                        "secure": c.get("secure"),
+                        "sameSite": c.get("sameSite"),
+                    }
+                    for c in cookies
+                ],
+                "count": len(cookies),
+                "timestamp": datetime.now().isoformat(),
+            }
+        except Exception as e:
+            logger.error(f"Error getting cookies from {url}: {e}", exc_info=True)
+            raise
+
+
+@with_retry(max_retries=config.max_retries, delay=config.retry_delay)
+async def handle_get_storage(arguments: Dict[str, Any]) -> Dict[str, Any]:
+    """Handle get_storage tool."""
+    url = arguments["url"]
+    
+    await rate_limiter.wait_if_needed(url)
+    
+    async with browser_context_manager(url=url) as page:
+        try:
+            wait_until = "networkidle" if config.wait_for_network_idle else "load"
+            response = await page.goto(url, wait_until=wait_until, timeout=config.navigation_timeout * 1000)
+            
+            if response:
+                rate_limiter.record_response(url, response.status)
+            
+            # Get localStorage
+            local_storage = await page.evaluate("""
+                () => {
+                    const items = {};
+                    for (let i = 0; i < localStorage.length; i++) {
+                        const key = localStorage.key(i);
+                        items[key] = localStorage.getItem(key);
+                    }
+                    return items;
+                }
+            """)
+            
+            # Get sessionStorage
+            session_storage = await page.evaluate("""
+                () => {
+                    const items = {};
+                    for (let i = 0; i < sessionStorage.length; i++) {
+                        const key = sessionStorage.key(i);
+                        items[key] = sessionStorage.getItem(key);
+                    }
+                    return items;
+                }
+            """)
+            
+            return {
+                "url": url,
+                "localStorage": local_storage,
+                "sessionStorage": session_storage,
+                "localStorage_count": len(local_storage),
+                "sessionStorage_count": len(session_storage),
+                "timestamp": datetime.now().isoformat(),
+            }
+        except Exception as e:
+            logger.error(f"Error getting storage from {url}: {e}", exc_info=True)
+            raise
+
+
+# ============================================================================
+# Recording Management Handlers
+# ============================================================================
+
+async def handle_delete_recording(arguments: Dict[str, Any]) -> Dict[str, Any]:
+    """Handle delete_recording tool."""
+    recording_id = arguments["recording_id"]
+    
+    try:
+        deleted = recording_storage.delete_recording(recording_id)
+        
+        return {
+            "recording_id": recording_id,
+            "status": "deleted" if deleted else "not_found",
+            "timestamp": datetime.now().isoformat(),
+        }
+    except Exception as e:
+        logger.error(f"Error deleting recording {recording_id}: {e}", exc_info=True)
+        raise
+
+
+async def handle_export_recording(arguments: Dict[str, Any]) -> Dict[str, Any]:
+    """Handle export_recording tool."""
+    recording_id = arguments["recording_id"]
+    export_format = arguments.get("format", "json")
+    
+    try:
+        recording = recording_storage.load_recording(recording_id)
+        
+        if not recording:
+            return {
+                "error": f"Recording {recording_id} not found",
+                "recording_id": recording_id,
+            }
+        
+        if export_format == "json":
+            # Return recording as JSON
+            output = {
+                "id": recording.id,
+                "start_time": recording.start_time.isoformat() if recording.start_time else None,
+                "end_time": recording.end_time.isoformat() if recording.end_time else None,
+                "duration": recording.duration,
+                "events": [
+                    {
+                        "type": e.type.value,
+                        "timestamp": e.timestamp,
+                        "data": e.data,
+                    }
+                    for e in recording.events
+                ],
+                "network": [
+                    {
+                        "url": n.url,
+                        "method": n.method,
+                        "status": n.status,
+                    }
+                    for n in recording.network
+                ] if hasattr(recording, 'network') else [],
+            }
+        elif export_format == "har":
+            # Export as HAR format
+            output = {
+                "log": {
+                    "version": "1.2",
+                    "creator": {"name": "Crawilfy", "version": "1.0"},
+                    "entries": [
+                        {
+                            "request": {
+                                "method": n.method,
+                                "url": n.url,
+                            },
+                            "response": {
+                                "status": n.status,
+                            },
+                        }
+                        for n in (recording.network if hasattr(recording, 'network') else [])
+                    ],
+                }
+            }
+        elif export_format == "playwright_test":
+            # Generate Playwright test
+            generator = CrawlerGenerator()
+            crawler_def = generator.from_recording(recording)
+            output = generator.to_playwright_script(crawler_def)
+        else:
+            output = None
+        
+        return {
+            "recording_id": recording_id,
+            "format": export_format,
+            "output": output,
+            "timestamp": datetime.now().isoformat(),
+        }
+    except Exception as e:
+        logger.error(f"Error exporting recording {recording_id}: {e}", exc_info=True)
+        raise
+
+
+# ============================================================================
+# Content Extraction Handlers
+# ============================================================================
+
+@with_retry(max_retries=config.max_retries, delay=config.retry_delay)
+async def handle_extract_links(arguments: Dict[str, Any]) -> Dict[str, Any]:
+    """Handle extract_links tool."""
+    url = arguments["url"]
+    filter_internal = arguments.get("filter_internal", False)
+    filter_external = arguments.get("filter_external", False)
+    include_text = arguments.get("include_text", True)
+    
+    await rate_limiter.wait_if_needed(url)
+    
+    async with browser_context_manager(url=url) as page:
+        try:
+            wait_until = "networkidle" if config.wait_for_network_idle else "load"
+            response = await page.goto(url, wait_until=wait_until, timeout=config.navigation_timeout * 1000)
+            
+            if response:
+                rate_limiter.record_response(url, response.status)
+            
+            from urllib.parse import urlparse, urljoin
+            base_domain = urlparse(url).netloc
+            
+            links = await page.evaluate(f"""
+                () => {{
+                    const links = [];
+                    document.querySelectorAll('a[href]').forEach(a => {{
+                        links.push({{
+                            href: a.href,
+                            text: a.textContent.trim(),
+                            title: a.title || null,
+                            rel: a.rel || null,
+                        }});
+                    }});
+                    return links;
+                }}
+            """)
+            
+            # Filter links
+            filtered_links = []
+            for link in links:
+                link_domain = urlparse(link.get("href", "")).netloc
+                is_internal = link_domain == base_domain or link_domain == ""
+                
+                if filter_internal and not is_internal:
+                    continue
+                if filter_external and is_internal:
+                    continue
+                
+                if include_text:
+                    filtered_links.append(link)
+                else:
+                    filtered_links.append({"href": link.get("href")})
+            
+            return {
+                "url": url,
+                "links": filtered_links,
+                "total": len(filtered_links),
+                "internal_filter": filter_internal,
+                "external_filter": filter_external,
+                "timestamp": datetime.now().isoformat(),
+            }
+        except Exception as e:
+            logger.error(f"Error extracting links from {url}: {e}", exc_info=True)
+            raise
+
+
+@with_retry(max_retries=config.max_retries, delay=config.retry_delay)
+async def handle_extract_forms(arguments: Dict[str, Any]) -> Dict[str, Any]:
+    """Handle extract_forms tool."""
+    url = arguments["url"]
+    
+    await rate_limiter.wait_if_needed(url)
+    
+    async with browser_context_manager(url=url) as page:
+        try:
+            wait_until = "networkidle" if config.wait_for_network_idle else "load"
+            response = await page.goto(url, wait_until=wait_until, timeout=config.navigation_timeout * 1000)
+            
+            if response:
+                rate_limiter.record_response(url, response.status)
+            
+            forms = await page.evaluate("""
+                () => {
+                    const forms = [];
+                    document.querySelectorAll('form').forEach((form, idx) => {
+                        const fields = [];
+                        form.querySelectorAll('input, select, textarea').forEach(field => {
+                            fields.push({
+                                tag: field.tagName.toLowerCase(),
+                                type: field.type || null,
+                                name: field.name || null,
+                                id: field.id || null,
+                                placeholder: field.placeholder || null,
+                                required: field.required || false,
+                                value: field.type === 'password' ? '***' : (field.value || null),
+                            });
+                        });
+                        
+                        forms.push({
+                            index: idx,
+                            action: form.action || null,
+                            method: form.method || 'GET',
+                            id: form.id || null,
+                            name: form.name || null,
+                            enctype: form.enctype || null,
+                            fields: fields,
+                        });
+                    });
+                    return forms;
+                }
+            """)
+            
+            return {
+                "url": url,
+                "forms": forms,
+                "total": len(forms),
+                "timestamp": datetime.now().isoformat(),
+            }
+        except Exception as e:
+            logger.error(f"Error extracting forms from {url}: {e}", exc_info=True)
+            raise
+
+
+@with_retry(max_retries=config.max_retries, delay=config.retry_delay)
+async def handle_extract_metadata(arguments: Dict[str, Any]) -> Dict[str, Any]:
+    """Handle extract_metadata tool."""
+    url = arguments["url"]
+    
+    await rate_limiter.wait_if_needed(url)
+    
+    async with browser_context_manager(url=url) as page:
+        try:
+            wait_until = "networkidle" if config.wait_for_network_idle else "load"
+            response = await page.goto(url, wait_until=wait_until, timeout=config.navigation_timeout * 1000)
+            
+            if response:
+                rate_limiter.record_response(url, response.status)
+            
+            metadata = await page.evaluate("""
+                () => {
+                    const result = {
+                        title: document.title,
+                        description: null,
+                        canonical: null,
+                        og: {},
+                        twitter: {},
+                        meta: {},
+                        jsonLd: [],
+                    };
+                    
+                    // Meta tags
+                    document.querySelectorAll('meta').forEach(meta => {
+                        const name = meta.getAttribute('name') || meta.getAttribute('property');
+                        const content = meta.getAttribute('content');
+                        
+                        if (name && content) {
+                            if (name.startsWith('og:')) {
+                                result.og[name.replace('og:', '')] = content;
+                            } else if (name.startsWith('twitter:')) {
+                                result.twitter[name.replace('twitter:', '')] = content;
+                            } else {
+                                result.meta[name] = content;
+                            }
+                            
+                            if (name === 'description') {
+                                result.description = content;
+                            }
+                        }
+                    });
+                    
+                    // Canonical URL
+                    const canonical = document.querySelector('link[rel="canonical"]');
+                    if (canonical) {
+                        result.canonical = canonical.href;
+                    }
+                    
+                    // JSON-LD structured data
+                    document.querySelectorAll('script[type="application/ld+json"]').forEach(script => {
+                        try {
+                            result.jsonLd.push(JSON.parse(script.textContent));
+                        } catch (e) {}
+                    });
+                    
+                    return result;
+                }
+            """)
+            
+            return {
+                "url": url,
+                **metadata,
+                "timestamp": datetime.now().isoformat(),
+            }
+        except Exception as e:
+            logger.error(f"Error extracting metadata from {url}: {e}", exc_info=True)
+            raise
+
+
+@with_retry(max_retries=config.max_retries, delay=config.retry_delay)
+async def handle_extract_tables(arguments: Dict[str, Any]) -> Dict[str, Any]:
+    """Handle extract_tables tool."""
+    url = arguments["url"]
+    output_format = arguments.get("format", "json")
+    
+    await rate_limiter.wait_if_needed(url)
+    
+    async with browser_context_manager(url=url) as page:
+        try:
+            wait_until = "networkidle" if config.wait_for_network_idle else "load"
+            response = await page.goto(url, wait_until=wait_until, timeout=config.navigation_timeout * 1000)
+            
+            if response:
+                rate_limiter.record_response(url, response.status)
+            
+            tables = await page.evaluate("""
+                () => {
+                    const tables = [];
+                    document.querySelectorAll('table').forEach((table, idx) => {
+                        const headers = [];
+                        const rows = [];
+                        
+                        // Get headers
+                        table.querySelectorAll('thead th, thead td, tr:first-child th').forEach(th => {
+                            headers.push(th.textContent.trim());
+                        });
+                        
+                        // Get rows
+                        table.querySelectorAll('tbody tr, tr').forEach((tr, rowIdx) => {
+                            // Skip header row if we already got headers
+                            if (rowIdx === 0 && headers.length > 0) return;
+                            
+                            const cells = [];
+                            tr.querySelectorAll('td, th').forEach(td => {
+                                cells.push(td.textContent.trim());
+                            });
+                            if (cells.length > 0) {
+                                rows.push(cells);
+                            }
+                        });
+                        
+                        tables.push({
+                            index: idx,
+                            id: table.id || null,
+                            headers: headers,
+                            rows: rows,
+                            rowCount: rows.length,
+                            colCount: headers.length || (rows[0] ? rows[0].length : 0),
+                        });
+                    });
+                    return tables;
+                }
+            """)
+            
+            # Convert to requested format
+            if output_format == "csv":
+                csv_tables = []
+                for table in tables:
+                    csv_rows = []
+                    if table["headers"]:
+                        csv_rows.append(",".join(f'"{h}"' for h in table["headers"]))
+                    for row in table["rows"]:
+                        csv_rows.append(",".join(f'"{c}"' for c in row))
+                    csv_tables.append("\n".join(csv_rows))
+                output = csv_tables
+            elif output_format == "markdown":
+                md_tables = []
+                for table in tables:
+                    md_rows = []
+                    if table["headers"]:
+                        md_rows.append("| " + " | ".join(table["headers"]) + " |")
+                        md_rows.append("| " + " | ".join(["---"] * len(table["headers"])) + " |")
+                    for row in table["rows"]:
+                        md_rows.append("| " + " | ".join(row) + " |")
+                    md_tables.append("\n".join(md_rows))
+                output = md_tables
+            else:
+                output = tables
+            
+            return {
+                "url": url,
+                "tables": output,
+                "total": len(tables),
+                "format": output_format,
+                "timestamp": datetime.now().isoformat(),
+            }
+        except Exception as e:
+            logger.error(f"Error extracting tables from {url}: {e}", exc_info=True)
+            raise
+
+
+# ============================================================================
+# CDP Handlers
+# ============================================================================
+
+@with_retry(max_retries=config.max_retries, delay=config.retry_delay)
+async def handle_execute_cdp(arguments: Dict[str, Any]) -> Dict[str, Any]:
+    """Handle execute_cdp tool."""
+    url = arguments["url"]
+    method = arguments["method"]
+    params = arguments.get("params", {})
+    
+    await rate_limiter.wait_if_needed(url)
+    
+    context = None
+    page = None
+    try:
+        context = await create_stealth_context(browser_pool, url=url)
+        page = await context.new_page()
+        page.set_default_timeout(config.navigation_timeout * 1000)
+        
+        wait_until = "networkidle" if config.wait_for_network_idle else "load"
+        response = await page.goto(url, wait_until=wait_until, timeout=config.navigation_timeout * 1000)
+        
+        if response:
+            rate_limiter.record_response(url, response.status)
+        
+        # Create CDP client
+        cdp_client = CDPClient(context)
+        await cdp_client.connect()
+        
+        # Execute CDP command
+        result = await cdp_client.send_command(method, params)
+        
+        return {
+            "url": url,
+            "method": method,
+            "params": params,
+            "result": result,
+            "timestamp": datetime.now().isoformat(),
+        }
+    except Exception as e:
+        logger.error(f"Error executing CDP command on {url}: {e}", exc_info=True)
+        raise
+    finally:
+        if page:
+            try:
+                await page.close()
+            except Exception:
+                pass
+        if context:
+            try:
+                await context.close()
+            except Exception:
+                pass
+
+
+@with_retry(max_retries=config.max_retries, delay=config.retry_delay)
+async def handle_get_dom_tree(arguments: Dict[str, Any]) -> Dict[str, Any]:
+    """Handle get_dom_tree tool."""
+    url = arguments["url"]
+    depth = arguments.get("depth", -1)
+    
+    await rate_limiter.wait_if_needed(url)
+    
+    context = None
+    page = None
+    try:
+        context = await create_stealth_context(browser_pool, url=url)
+        page = await context.new_page()
+        page.set_default_timeout(config.navigation_timeout * 1000)
+        
+        wait_until = "networkidle" if config.wait_for_network_idle else "load"
+        response = await page.goto(url, wait_until=wait_until, timeout=config.navigation_timeout * 1000)
+        
+        if response:
+            rate_limiter.record_response(url, response.status)
+        
+        # Create CDP client
+        cdp_client = CDPClient(context)
+        await cdp_client.connect()
+        
+        # Get DOM tree
+        dom_tree = await cdp_client.get_dom_tree(depth)
+        
+        return {
+            "url": url,
+            "depth": depth,
+            "dom": dom_tree,
+            "timestamp": datetime.now().isoformat(),
+        }
+    except Exception as e:
+        logger.error(f"Error getting DOM tree from {url}: {e}", exc_info=True)
+        raise
+    finally:
+        if page:
+            try:
+                await page.close()
+            except Exception:
+                pass
+        if context:
+            try:
+                await context.close()
+            except Exception:
+                pass
+
+
+# ============================================================================
+# Performance and Analysis Handlers
+# ============================================================================
+
+@with_retry(max_retries=config.max_retries, delay=config.retry_delay)
+async def handle_measure_performance(arguments: Dict[str, Any]) -> Dict[str, Any]:
+    """Handle measure_performance tool."""
+    url = arguments["url"]
+    
+    await rate_limiter.wait_if_needed(url)
+    
+    async with browser_context_manager(url=url) as page:
+        try:
+            # Navigate and get performance timing
+            response = await page.goto(url, wait_until="networkidle", timeout=config.navigation_timeout * 1000)
+            
+            if response:
+                rate_limiter.record_response(url, response.status)
+            
+            # Get performance metrics
+            metrics = await page.evaluate("""
+                () => {
+                    const timing = performance.timing;
+                    const navigation = performance.getEntriesByType('navigation')[0] || {};
+                    
+                    return {
+                        // Navigation timing
+                        dns: timing.domainLookupEnd - timing.domainLookupStart,
+                        tcp: timing.connectEnd - timing.connectStart,
+                        ssl: timing.connectEnd - timing.secureConnectionStart,
+                        ttfb: timing.responseStart - timing.requestStart,
+                        download: timing.responseEnd - timing.responseStart,
+                        domInteractive: timing.domInteractive - timing.navigationStart,
+                        domComplete: timing.domComplete - timing.navigationStart,
+                        loadEvent: timing.loadEventEnd - timing.navigationStart,
+                        
+                        // Navigation entry metrics
+                        transferSize: navigation.transferSize || 0,
+                        encodedBodySize: navigation.encodedBodySize || 0,
+                        decodedBodySize: navigation.decodedBodySize || 0,
+                        
+                        // Resource counts
+                        resourceCount: performance.getEntriesByType('resource').length,
+                    };
+                }
+            """)
+            
+            # Get Core Web Vitals (if available)
+            web_vitals = await page.evaluate("""
+                () => {
+                    return new Promise(resolve => {
+                        const vitals = {
+                            lcp: null,
+                            fid: null,
+                            cls: null,
+                        };
+                        
+                        // LCP
+                        new PerformanceObserver(list => {
+                            const entries = list.getEntries();
+                            if (entries.length > 0) {
+                                vitals.lcp = entries[entries.length - 1].startTime;
+                            }
+                        }).observe({ type: 'largest-contentful-paint', buffered: true });
+                        
+                        // CLS
+                        let clsValue = 0;
+                        new PerformanceObserver(list => {
+                            for (const entry of list.getEntries()) {
+                                if (!entry.hadRecentInput) {
+                                    clsValue += entry.value;
+                                }
+                            }
+                            vitals.cls = clsValue;
+                        }).observe({ type: 'layout-shift', buffered: true });
+                        
+                        // Resolve after a short delay
+                        setTimeout(() => resolve(vitals), 100);
+                    });
+                }
+            """)
+            
+            return {
+                "url": url,
+                "timing": metrics,
+                "webVitals": web_vitals,
+                "timestamp": datetime.now().isoformat(),
+            }
+        except Exception as e:
+            logger.error(f"Error measuring performance for {url}: {e}", exc_info=True)
+            raise
+
+
+@with_retry(max_retries=config.max_retries, delay=config.retry_delay)
+async def handle_analyze_resources(arguments: Dict[str, Any]) -> Dict[str, Any]:
+    """Handle analyze_resources tool."""
+    url = arguments["url"]
+    
+    await rate_limiter.wait_if_needed(url)
+    
+    async with browser_context_manager(url=url) as page:
+        try:
+            wait_until = "networkidle" if config.wait_for_network_idle else "load"
+            response = await page.goto(url, wait_until=wait_until, timeout=config.navigation_timeout * 1000)
+            
+            if response:
+                rate_limiter.record_response(url, response.status)
+            
+            resources = await page.evaluate("""
+                () => {
+                    const entries = performance.getEntriesByType('resource');
+                    const byType = {};
+                    const resources = [];
+                    
+                    entries.forEach(entry => {
+                        const type = entry.initiatorType || 'other';
+                        byType[type] = (byType[type] || 0) + 1;
+                        
+                        resources.push({
+                            url: entry.name,
+                            type: type,
+                            duration: entry.duration,
+                            transferSize: entry.transferSize || 0,
+                            encodedBodySize: entry.encodedBodySize || 0,
+                            decodedBodySize: entry.decodedBodySize || 0,
+                        });
+                    });
+                    
+                    return {
+                        total: entries.length,
+                        byType: byType,
+                        totalSize: resources.reduce((sum, r) => sum + r.transferSize, 0),
+                        resources: resources.slice(0, 100), // Limit to first 100
+                    };
+                }
+            """)
+            
+            return {
+                "url": url,
+                **resources,
+                "timestamp": datetime.now().isoformat(),
+            }
+        except Exception as e:
+            logger.error(f"Error analyzing resources for {url}: {e}", exc_info=True)
+            raise
+
+
+@with_retry(max_retries=config.max_retries, delay=config.retry_delay)
+async def handle_check_accessibility(arguments: Dict[str, Any]) -> Dict[str, Any]:
+    """Handle check_accessibility tool."""
+    url = arguments["url"]
+    
+    await rate_limiter.wait_if_needed(url)
+    
+    async with browser_context_manager(url=url) as page:
+        try:
+            wait_until = "networkidle" if config.wait_for_network_idle else "load"
+            response = await page.goto(url, wait_until=wait_until, timeout=config.navigation_timeout * 1000)
+            
+            if response:
+                rate_limiter.record_response(url, response.status)
+            
+            # Basic accessibility checks
+            issues = await page.evaluate("""
+                () => {
+                    const issues = [];
+                    
+                    // Check images without alt
+                    document.querySelectorAll('img:not([alt])').forEach(img => {
+                        issues.push({
+                            type: 'missing_alt',
+                            severity: 'error',
+                            element: 'img',
+                            description: 'Image missing alt attribute',
+                            selector: img.id ? `#${img.id}` : (img.className ? `.${img.className.split(' ')[0]}` : 'img'),
+                        });
+                    });
+                    
+                    // Check form inputs without labels
+                    document.querySelectorAll('input:not([type="hidden"]):not([type="submit"]):not([type="button"])').forEach(input => {
+                        const id = input.id;
+                        const hasLabel = id && document.querySelector(`label[for="${id}"]`);
+                        const hasAriaLabel = input.hasAttribute('aria-label') || input.hasAttribute('aria-labelledby');
+                        
+                        if (!hasLabel && !hasAriaLabel) {
+                            issues.push({
+                                type: 'missing_label',
+                                severity: 'error',
+                                element: 'input',
+                                description: 'Input missing associated label',
+                                selector: input.id ? `#${input.id}` : (input.name ? `input[name="${input.name}"]` : 'input'),
+                            });
+                        }
+                    });
+                    
+                    // Check empty links
+                    document.querySelectorAll('a').forEach(link => {
+                        const text = link.textContent.trim();
+                        const hasAriaLabel = link.hasAttribute('aria-label');
+                        const hasImage = link.querySelector('img[alt]');
+                        
+                        if (!text && !hasAriaLabel && !hasImage) {
+                            issues.push({
+                                type: 'empty_link',
+                                severity: 'error',
+                                element: 'a',
+                                description: 'Link has no accessible text',
+                                selector: link.href ? `a[href="${link.getAttribute('href')}"]` : 'a',
+                            });
+                        }
+                    });
+                    
+                    // Check heading hierarchy
+                    const headings = Array.from(document.querySelectorAll('h1, h2, h3, h4, h5, h6'));
+                    let lastLevel = 0;
+                    headings.forEach(h => {
+                        const level = parseInt(h.tagName[1]);
+                        if (level > lastLevel + 1) {
+                            issues.push({
+                                type: 'heading_skip',
+                                severity: 'warning',
+                                element: h.tagName.toLowerCase(),
+                                description: `Heading level skipped (from h${lastLevel} to h${level})`,
+                                selector: h.id ? `#${h.id}` : h.tagName.toLowerCase(),
+                            });
+                        }
+                        lastLevel = level;
+                    });
+                    
+                    // Check color contrast (basic check)
+                    document.querySelectorAll('*').forEach(el => {
+                        const style = window.getComputedStyle(el);
+                        const color = style.color;
+                        const bg = style.backgroundColor;
+                        // Simple check for very low contrast
+                        if (color === bg && color !== 'rgba(0, 0, 0, 0)') {
+                            issues.push({
+                                type: 'low_contrast',
+                                severity: 'warning',
+                                element: el.tagName.toLowerCase(),
+                                description: 'Possible low color contrast',
+                            });
+                        }
+                    });
+                    
+                    return {
+                        issues: issues,
+                        counts: {
+                            errors: issues.filter(i => i.severity === 'error').length,
+                            warnings: issues.filter(i => i.severity === 'warning').length,
+                        },
+                        checks: ['alt_text', 'form_labels', 'empty_links', 'heading_hierarchy', 'color_contrast'],
+                    };
+                }
+            """)
+            
+            return {
+                "url": url,
+                **issues,
+                "timestamp": datetime.now().isoformat(),
+            }
+        except Exception as e:
+            logger.error(f"Error checking accessibility for {url}: {e}", exc_info=True)
+            raise
+
+
+@with_retry(max_retries=config.max_retries, delay=config.retry_delay)
+async def handle_compare_pages(arguments: Dict[str, Any]) -> Dict[str, Any]:
+    """Handle compare_pages tool."""
+    url1 = arguments["url1"]
+    url2 = arguments["url2"]
+    compare_type = arguments.get("compare_type", "both")
+    
+    await rate_limiter.wait_if_needed(url1)
+    await rate_limiter.wait_if_needed(url2)
+    
+    async with browser_context_manager(url=url1) as page1:
+        async with browser_context_manager(url=url2) as page2:
+            try:
+                wait_until = "networkidle" if config.wait_for_network_idle else "load"
+                
+                # Navigate to both pages
+                response1 = await page1.goto(url1, wait_until=wait_until, timeout=config.navigation_timeout * 1000)
+                response2 = await page2.goto(url2, wait_until=wait_until, timeout=config.navigation_timeout * 1000)
+                
+                if response1:
+                    rate_limiter.record_response(url1, response1.status)
+                if response2:
+                    rate_limiter.record_response(url2, response2.status)
+                
+                result = {
+                    "url1": url1,
+                    "url2": url2,
+                    "compare_type": compare_type,
+                }
+                
+                if compare_type in ["structure", "both"]:
+                    # Compare DOM structure
+                    structure1 = await page1.evaluate("""
+                        () => {
+                            const countElements = (el) => {
+                                const counts = {};
+                                const walk = (node) => {
+                                    if (node.nodeType === 1) {
+                                        const tag = node.tagName.toLowerCase();
+                                        counts[tag] = (counts[tag] || 0) + 1;
+                                        Array.from(node.children).forEach(walk);
+                                    }
+                                };
+                                walk(el);
+                                return counts;
+                            };
+                            return {
+                                elements: countElements(document.body),
+                                totalElements: document.body.getElementsByTagName('*').length,
+                            };
+                        }
+                    """)
+                    
+                    structure2 = await page2.evaluate("""
+                        () => {
+                            const countElements = (el) => {
+                                const counts = {};
+                                const walk = (node) => {
+                                    if (node.nodeType === 1) {
+                                        const tag = node.tagName.toLowerCase();
+                                        counts[tag] = (counts[tag] || 0) + 1;
+                                        Array.from(node.children).forEach(walk);
+                                    }
+                                };
+                                walk(el);
+                                return counts;
+                            };
+                            return {
+                                elements: countElements(document.body),
+                                totalElements: document.body.getElementsByTagName('*').length,
+                            };
+                        }
+                    """)
+                    
+                    # Find differences
+                    all_tags = set(structure1["elements"].keys()) | set(structure2["elements"].keys())
+                    element_diffs = {}
+                    for tag in all_tags:
+                        count1 = structure1["elements"].get(tag, 0)
+                        count2 = structure2["elements"].get(tag, 0)
+                        if count1 != count2:
+                            element_diffs[tag] = {"url1": count1, "url2": count2, "diff": count2 - count1}
+                    
+                    result["structure"] = {
+                        "url1_elements": structure1["totalElements"],
+                        "url2_elements": structure2["totalElements"],
+                        "element_differences": element_diffs,
+                    }
+                
+                if compare_type in ["content", "both"]:
+                    # Compare text content
+                    text1 = await page1.evaluate("() => document.body.innerText")
+                    text2 = await page2.evaluate("() => document.body.innerText")
+                    
+                    # Simple word comparison
+                    words1 = set(text1.lower().split())
+                    words2 = set(text2.lower().split())
+                    
+                    result["content"] = {
+                        "url1_word_count": len(words1),
+                        "url2_word_count": len(words2),
+                        "common_words": len(words1 & words2),
+                        "unique_to_url1": len(words1 - words2),
+                        "unique_to_url2": len(words2 - words1),
+                        "similarity": len(words1 & words2) / len(words1 | words2) if words1 | words2 else 0,
+                    }
+                
+                result["timestamp"] = datetime.now().isoformat()
+                return result
+                
+            except Exception as e:
+                logger.error(f"Error comparing pages: {e}", exc_info=True)
+                raise
+
+
+@with_retry(max_retries=config.max_retries, delay=config.retry_delay)
+async def handle_monitor_network(arguments: Dict[str, Any]) -> Dict[str, Any]:
+    """Handle monitor_network tool."""
+    url = arguments["url"]
+    duration = arguments.get("duration", 10)
+    filter_type = arguments.get("filter_type", "all")
+    
+    await rate_limiter.wait_if_needed(url)
+    
+    async with browser_context_manager(url=url) as page:
+        try:
+            requests_data = []
+            
+            # Set up request listener
+            async def on_request(request):
+                req_type = request.resource_type
+                if filter_type == "all" or req_type == filter_type:
+                    requests_data.append({
+                        "url": request.url,
+                        "method": request.method,
+                        "type": req_type,
+                        "headers": dict(request.headers),
+                        "timestamp": datetime.now().isoformat(),
+                    })
+            
+            async def on_response(response):
+                # Update request with response info
+                for req in requests_data:
+                    if req["url"] == response.url:
+                        req["status"] = response.status
+                        req["response_headers"] = dict(response.headers)
+                        break
+            
+            page.on("request", on_request)
+            page.on("response", on_response)
+            
+            # Navigate
+            wait_until = "load"  # Don't wait for networkidle when monitoring
+            response = await page.goto(url, wait_until=wait_until, timeout=config.navigation_timeout * 1000)
+            
+            if response:
+                rate_limiter.record_response(url, response.status)
+            
+            # Monitor for specified duration
+            await asyncio.sleep(duration)
+            
+            return {
+                "url": url,
+                "duration": duration,
+                "filter_type": filter_type,
+                "requests": requests_data,
+                "total": len(requests_data),
+                "by_type": {},  # Count by type
+                "timestamp": datetime.now().isoformat(),
+            }
+        except Exception as e:
+            logger.error(f"Error monitoring network for {url}: {e}", exc_info=True)
+            raise
+
+
+@with_retry(max_retries=config.max_retries, delay=config.retry_delay)
+async def handle_fill_form(arguments: Dict[str, Any]) -> Dict[str, Any]:
+    """Handle fill_form tool."""
+    url = arguments["url"]
+    form_selector = arguments.get("form_selector")
+    data = arguments["data"]
+    submit = arguments.get("submit", False)
+    
+    await rate_limiter.wait_if_needed(url)
+    
+    async with browser_context_manager(url=url) as page:
+        try:
+            wait_until = "networkidle" if config.wait_for_network_idle else "load"
+            response = await page.goto(url, wait_until=wait_until, timeout=config.navigation_timeout * 1000)
+            
+            if response:
+                rate_limiter.record_response(url, response.status)
+            
+            filled_fields = []
+            
+            # Fill form fields
+            for field_name, value in data.items():
+                try:
+                    # Try multiple selector strategies
+                    selectors = [
+                        f'input[name="{field_name}"]',
+                        f'input[id="{field_name}"]',
+                        f'textarea[name="{field_name}"]',
+                        f'textarea[id="{field_name}"]',
+                        f'select[name="{field_name}"]',
+                        f'select[id="{field_name}"]',
+                    ]
+                    
+                    if form_selector:
+                        selectors = [f'{form_selector} {s}' for s in selectors]
+                    
+                    for selector in selectors:
+                        try:
+                            element = await page.query_selector(selector)
+                            if element:
+                                tag = await element.evaluate("el => el.tagName.toLowerCase()")
+                                
+                                if tag == "select":
+                                    await element.select_option(value)
+                                else:
+                                    await element.fill(str(value))
+                                
+                                filled_fields.append({"name": field_name, "selector": selector, "value": value})
+                                break
+                        except Exception:
+                            continue
+                except Exception as e:
+                    logger.warning(f"Could not fill field {field_name}: {e}")
+            
+            result = {
+                "url": url,
+                "filled_fields": filled_fields,
+                "total_filled": len(filled_fields),
+                "total_requested": len(data),
+                "submitted": False,
+            }
+            
+            # Submit if requested
+            if submit and filled_fields:
+                try:
+                    submit_selector = f'{form_selector} [type="submit"], {form_selector} button' if form_selector else '[type="submit"], button'
+                    submit_button = await page.query_selector(submit_selector)
+                    
+                    if submit_button:
+                        await submit_button.click()
+                        await page.wait_for_load_state("networkidle")
+                        result["submitted"] = True
+                        result["final_url"] = page.url
+                except Exception as e:
+                    result["submit_error"] = str(e)
+            
+            result["timestamp"] = datetime.now().isoformat()
+            return result
+            
+        except Exception as e:
+            logger.error(f"Error filling form on {url}: {e}", exc_info=True)
+            raise
+
+
+@with_retry(max_retries=config.max_retries, delay=config.retry_delay)
+async def handle_wait_and_extract(arguments: Dict[str, Any]) -> Dict[str, Any]:
+    """Handle wait_and_extract tool."""
+    url = arguments["url"]
+    selector = arguments["selector"]
+    timeout = arguments.get("timeout", 30)
+    extract_type = arguments.get("extract_type", "text")
+    attribute = arguments.get("attribute")
+    
+    await rate_limiter.wait_if_needed(url)
+    
+    async with browser_context_manager(url=url) as page:
+        try:
+            # Navigate
+            response = await page.goto(url, wait_until="load", timeout=config.navigation_timeout * 1000)
+            
+            if response:
+                rate_limiter.record_response(url, response.status)
+            
+            # Wait for selector
+            await page.wait_for_selector(selector, timeout=timeout * 1000)
+            
+            # Extract content
+            elements = await page.query_selector_all(selector)
+            
+            extracted = []
+            for element in elements:
+                try:
+                    if extract_type == "text":
+                        content = await element.inner_text()
+                    elif extract_type == "html":
+                        content = await element.inner_html()
+                    elif extract_type == "attribute" and attribute:
+                        content = await element.get_attribute(attribute)
+                    else:
+                        content = await element.inner_text()
+                    
+                    extracted.append(content)
+                except Exception as e:
+                    logger.warning(f"Error extracting from element: {e}")
+            
+            return {
+                "url": url,
+                "selector": selector,
+                "extract_type": extract_type,
+                "attribute": attribute,
+                "content": extracted[0] if len(extracted) == 1 else extracted,
+                "count": len(extracted),
+                "timestamp": datetime.now().isoformat(),
+            }
+        except asyncio.TimeoutError:
+            return {
+                "url": url,
+                "selector": selector,
+                "error": f"Timeout waiting for selector after {timeout} seconds",
+                "timestamp": datetime.now().isoformat(),
+            }
+        except Exception as e:
+            logger.error(f"Error in wait_and_extract for {url}: {e}", exc_info=True)
+            raise
+
+
 async def main():
     """Main entry point for MCP server."""
     await init_browser_pool()
@@ -1860,9 +3855,14 @@ async def main():
         logger.info("MCP server shutdown complete")
 
 
-if __name__ == "__main__":
+def main_sync():
+    """Synchronous entry point for CLI/uvx."""
     logging.basicConfig(
         level=logging.INFO,
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
     )
     asyncio.run(main())
+
+
+if __name__ == "__main__":
+    main_sync()
