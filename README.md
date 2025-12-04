@@ -36,38 +36,106 @@ Advanced web crawling platform with deep analysis capabilities, automatic API di
 ### 🔌 MCP Server
 MCP Protocol support with advanced tools for analysis and crawling.
 
-## Installation
+## Quick Start: Setting Up in Cursor or Claude Code
+
+Follow these simple steps to add Crawilfy MCP Server to your AI assistant.
+
+### Step 1: Download and Navigate to the Project
+
+1. Download or clone this project to your computer
+2. Open Terminal (Mac) or Command Prompt (Windows)
+3. Navigate to the project folder:
+   ```bash
+   cd /path/to/crawilfy-mcp-server
+   ```
+   *(Replace `/path/to/` with the actual location where you saved the project)*
+
+### Step 2: Create a Virtual Environment
+
+A virtual environment keeps this project's packages separate from other Python projects on your computer.
+
+**On Mac/Linux:**
+```bash
+python3 -m venv venv
+source venv/bin/activate
+```
+
+**On Windows:**
+```bash
+python -m venv venv
+venv\Scripts\activate
+```
+
+You'll know it worked when you see `(venv)` at the beginning of your terminal prompt.
+
+### Step 3: Install Dependencies
+
+With the virtual environment activated, run:
 
 ```bash
-pip install -r requirements.txt
+# Install the package and all required libraries
+pip install -e .
+
+# Install the browser (this may take a few minutes)
 playwright install chromium
 ```
 
-## Usage
+### Step 4: Configure in Cursor or Claude Code
 
-### CLI
+1. **Open Cursor/Claude Code Settings:**
+   - Press `Cmd + ,` (Mac) or `Ctrl + ,` (Windows) to open settings
+   - Search for "MCP" or "Model Context Protocol"
 
-```bash
-# Deep analysis
-python -m src.cli.main deep-analyze https://example.com --full
+2. **Add the MCP Server:**
+   
+   Click "Add MCP Server" or edit the MCP settings JSON file, then add this configuration:
 
-# Discover APIs
-python -m src.cli.main discover-apis https://example.com --include-hidden
+   ```json
+   {
+     "mcpServers": {
+       "crawilfy": {
+         "command": "/path/to/crawilfy-mcp-server/venv/bin/python",
+         "args": ["-m", "src.mcp.server"],
+         "cwd": "/path/to/crawilfy-mcp-server"
+       }
+     }
+   }
+   ```
 
-# Record session
-python -m src.cli.main record https://example.com --output session.json
+   **Important:** Replace `/path/to/crawilfy-mcp-server` with the actual path where you saved the project.
+   
+   **On Windows:** Use `venv\Scripts\python.exe` instead of `venv/bin/python`
 
-# Generate crawler
-python -m src.cli.main generate --from-recording session.json --output crawler.yaml
-```
+3. **Save and Restart:**
+   - Save the configuration
+   - Restart Cursor/Claude Code completely
+   - The server should now be available!
 
-### MCP Server
+### Step 5: Verify It's Working
 
-```bash
-python -m src.mcp.server
-```
+After restarting, you should see the Crawilfy tools available in your AI assistant. Try asking:
+- "Can you analyze a website for me?"
+- "Discover APIs on example.com"
+- "Check the health of the crawilfy server"
 
-The MCP server provides the following tools:
+### Troubleshooting
+
+**Problem:** "python command not found"
+- **Solution:** Use `python3` instead of `python`, or use the full path to your Python installation
+
+**Problem:** "ModuleNotFoundError: No module named 'src'"
+- **Solution:** Make sure you ran `pip install -e .` in Step 3, and that the `cwd` path in your MCP config is correct
+
+**Problem:** "ENOENT" or "spawn error"
+- **Solution:** Check that the path to `venv/bin/python` (or `venv\Scripts\python.exe` on Windows) is correct in your MCP configuration
+
+**Still having issues?** Check the MCP server logs in Cursor/Claude Code settings for detailed error messages.
+
+---
+
+## Available Tools
+
+Once set up, the MCP server provides these tools you can use through your AI assistant:
 
 #### Analysis Tools
 - `deep_analyze`: Comprehensive deep analysis of a website (network + JS + security)
@@ -100,7 +168,11 @@ The MCP server provides the following tools:
 - ✅ **Error Handling**: Comprehensive error handling with detailed messages
 - ✅ **Configuration**: Environment variable support for all settings
 
-### Python API Example
+---
+
+## Python API (For Developers)
+
+If you want to use Crawilfy programmatically in your own Python code:
 
 ```python
 import asyncio
@@ -157,45 +229,73 @@ src/
 └── crawlers/       # Generated crawlers
 ```
 
-## Configuration
+## Advanced Configuration (Optional)
 
-The MCP server can be configured using environment variables:
+The MCP server works with default settings, but you can customize it by adding environment variables to your MCP configuration:
 
-```bash
-# Timeouts (in seconds)
-export CRAWILFY_NAV_TIMEOUT=30.0      # Navigation timeout
-export CRAWILFY_REQ_TIMEOUT=30.0     # Request timeout
-export CRAWILFY_OP_TIMEOUT=60.0      # Operation timeout
-
-# Browser settings
-export CRAWILFY_HEADLESS=true        # Run browser in headless mode
-export CRAWILFY_BROWSER=chromium     # Browser type (chromium, firefox, webkit)
-export CRAWILFY_POOL_SIZE=5           # Max browser pool size
-
-# Retry settings
-export CRAWILFY_MAX_RETRIES=3         # Max retry attempts
-export CRAWILFY_RETRY_DELAY=1.0       # Delay between retries (seconds)
-
-# Recording settings
-export CRAWILFY_RECORDING_DIR=/path/to/recordings  # Custom storage directory
-export CRAWILFY_AUTO_SAVE=true        # Auto-save recordings
-
-# Analysis settings
-export CRAWILFY_WAIT_NETWORK=true     # Wait for network idle
-export CRAWILFY_SCREENSHOTS=false     # Capture screenshots
+```json
+{
+  "mcpServers": {
+    "crawilfy": {
+      "command": "/path/to/crawilfy-mcp-server/venv/bin/python",
+      "args": ["-m", "src.mcp.server"],
+      "cwd": "/path/to/crawilfy-mcp-server",
+      "env": {
+        "CRAWILFY_HEADLESS": "true",
+        "CRAWILFY_BROWSER": "chromium",
+        "CRAWILFY_NAV_TIMEOUT": "30.0",
+        "CRAWILFY_OP_TIMEOUT": "60.0"
+      }
+    }
+  }
+}
 ```
 
-## Development
+**Available settings:**
+- `CRAWILFY_HEADLESS`: Run browser in background (`true` or `false`, default: `true`)
+- `CRAWILFY_BROWSER`: Browser type (`chromium`, `firefox`, or `webkit`, default: `chromium`)
+- `CRAWILFY_NAV_TIMEOUT`: Page load timeout in seconds (default: `30.0`)
+- `CRAWILFY_OP_TIMEOUT`: Operation timeout in seconds (default: `60.0`)
+- `CRAWILFY_POOL_SIZE`: Maximum number of browsers (default: `5`)
 
-### Setup
+Most users don't need to change these settings.
+
+---
+
+## For Developers
+
+### Development Setup
+
+If you're contributing to or modifying this project:
 
 ```bash
-# Install dependencies
-pip install -r requirements.txt
+# Create virtual environment
+python3 -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install in development mode with dev dependencies
 pip install -e ".[dev]"
 
 # Install Playwright browsers
 playwright install chromium
+```
+
+### Command Line Interface
+
+You can also use Crawilfy from the command line:
+
+```bash
+# Deep analysis
+python -m src.cli.main deep-analyze https://example.com --full
+
+# Discover APIs
+python -m src.cli.main discover-apis https://example.com --include-hidden
+
+# Record session
+python -m src.cli.main record https://example.com --output session.json
+
+# Generate crawler
+python -m src.cli.main generate --from-recording session.json --output crawler.yaml
 ```
 
 ### Running Tests
