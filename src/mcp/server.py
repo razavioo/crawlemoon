@@ -511,7 +511,7 @@ async def list_tools() -> List[Tool]:
         ),
         Tool(
             name="solve_captcha",
-            description="Detect and solve CAPTCHA on a webpage. Supports reCAPTCHA, hCaptcha, and Cloudflare Turnstile. NOTE: Requires paid CAPTCHA solving service (ANTICAPTCHA_API_KEY or CAPSOLVER_API_KEY). Returns detection info if no solver configured.",
+            description="Detect and solve CAPTCHA on a webpage. Supports reCAPTCHA, hCaptcha, and Cloudflare Turnstile. Uses FREE methods (OCR, browser automation) by default. Paid services (ANTICAPTCHA_API_KEY or CAPSOLVER_API_KEY) are optional for better accuracy.",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -2185,15 +2185,21 @@ async def handle_solve_captcha(arguments: Dict[str, Any]) -> Dict[str, Any]:
             captcha_type = None
             if captcha_type_str != "auto":
                 try:
+                    # Try lookup by enum name (uppercase)
                     captcha_type = CaptchaType[captcha_type_str.upper()]
                 except KeyError:
-                    captcha_type = None
+                    try:
+                        # Fallback to lookup by value
+                        captcha_type = CaptchaType(captcha_type_str.lower())
+                    except (ValueError, KeyError):
+                        captcha_type = None
             
-            # Solve CAPTCHA
+            # Solve CAPTCHA (pass page for browser automation)
             solution = await bot_detector.solve_captcha_if_present(
                 content,
                 url,
                 captcha_type,
+                page=page,  # Pass page for free browser automation
             )
             
             detected_type = bot_detector.detect_captcha_type(content)

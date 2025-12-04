@@ -37,6 +37,7 @@ class CaptchaType(Enum):
     RECAPTCHA_V2 = "recaptcha_v2"
     RECAPTCHA_V3 = "recaptcha_v3"
     HCAPTCHA = "hcaptcha"
+    TURNSTILE = "turnstile"
     FUNCAPTCHA = "funcaptcha"
     NONE = "none"
 
@@ -215,6 +216,9 @@ class BotDetectionAnalyzer:
         if "hcaptcha" in content_lower:
             return CaptchaType.HCAPTCHA
         
+        if "turnstile" in content_lower or "cf-turnstile" in content_lower:
+            return CaptchaType.TURNSTILE
+        
         if "funcaptcha" in content_lower:
             return CaptchaType.FUNCAPTCHA
         
@@ -255,6 +259,7 @@ class BotDetectionAnalyzer:
         page_content: str,
         page_url: str,
         captcha_type: Optional[CaptchaType] = None,
+        page=None,  # Optional Playwright page for browser automation
     ) -> Optional[str]:
         """Detect and solve CAPTCHA if present.
         
@@ -270,9 +275,10 @@ class BotDetectionAnalyzer:
             logger.warning("CAPTCHA solving not available")
             return None
         
-        captcha_solver = get_captcha_solver()
+        # Always try to get solver (with free methods enabled)
+        captcha_solver = get_captcha_solver(use_free_methods=True)
         if not captcha_solver:
-            logger.warning("No CAPTCHA solver configured")
+            logger.warning("No CAPTCHA solver available (no free methods or API keys)")
             return None
         
         # Detect CAPTCHA type if not provided
@@ -318,7 +324,8 @@ class BotDetectionAnalyzer:
         # Solve CAPTCHA
         try:
             if captcha_type == CaptchaType.RECAPTCHA_V2:
-                return await captcha_solver.solve_recaptcha_v2(site_key, page_url)
+                # Pass page for browser automation (free method)
+                return await captcha_solver.solve_recaptcha_v2(site_key, page_url, page=page)
             elif captcha_type == CaptchaType.HCAPTCHA:
                 return await captcha_solver.solve_hcaptcha(site_key, page_url)
             elif captcha_type == CaptchaType.TURNSTILE:

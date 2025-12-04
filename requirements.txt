@@ -25,8 +25,13 @@ selectolax>=0.3.0
 markdownify>=0.11.0
 
 # Phase 3: CAPTCHA Solving
-python-anticaptcha>=1.0.0
-capsolver>=1.0.0
+python-anticaptcha>=1.0.0  # Optional: Paid service
+capsolver>=1.0.0  # Optional: Paid service
+
+# Free CAPTCHA solving (optional)
+pytesseract>=0.3.10  # Optional: Free OCR for image CAPTCHAs
+Pillow>=10.0.0  # Optional: Image processing for OCR
+# easyocr>=1.7.0  # Optional: Alternative OCR (uncomment if needed, requires torch)
 
 # Phase 4: Smart Extraction & AI
 instructor>=0.4.0
