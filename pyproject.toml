@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
 authors = [
-    {name = "emad.dev", email = "team@crawilfy.com"}
+    {name = "emad.dev", email = "contact@emad.dev"}
 ]
 keywords = ["crawling", "scraping", "automation", "mcp", "web-analysis", "playwright", "api-discovery"]
 classifiers = [
@@ -93,4 +93,3 @@ warn_unused_configs = true
 where = ["."]
 include = ["src*"]
 exclude = ["tests*", "*.tests*", "*.tests.*", "tests.*"]
-
