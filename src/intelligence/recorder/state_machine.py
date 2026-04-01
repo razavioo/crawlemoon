@@ -1,7 +1,7 @@
 """State machine generator from recordings."""
 
 import logging
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from dataclasses import dataclass, field
 from enum import Enum
 

@@ -32,10 +32,10 @@ except ImportError:
 # Optional instructor for structured output (enhances LLM extraction)
 INSTRUCTOR_AVAILABLE = False
 try:
-    from instructor import patch
+    import instructor
     INSTRUCTOR_AVAILABLE = True
 except ImportError:
-    patch = None
+    instructor = None
 
 try:
     from selectolax.parser import HTMLParser
@@ -210,8 +210,8 @@ class SmartExtractor:
             client = OpenAI(**client_kwargs)
             
             # Optionally wrap with instructor for structured output
-            if INSTRUCTOR_AVAILABLE and patch:
-                self.client = patch(client)
+            if INSTRUCTOR_AVAILABLE and instructor:
+                self.client = instructor.from_openai(client)
             else:
                 self.client = client
             

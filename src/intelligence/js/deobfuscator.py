@@ -51,7 +51,7 @@ class JSDeobfuscator:
                 encoded = match.group(1)
                 decoded = base64.b64decode(encoded).decode('utf-8', errors='ignore')
                 deobfuscated = deobfuscated.replace(match.group(0), f'"{decoded}"')
-            except:
+            except Exception:
                 pass
         
         # Try to decode hex encoded strings
@@ -62,7 +62,7 @@ class JSDeobfuscator:
                 hex_str = match.group(1)
                 decoded = bytes.fromhex(hex_str).decode('utf-8', errors='ignore')
                 deobfuscated = deobfuscated.replace(match.group(0), f'"{decoded}"')
-            except:
+            except Exception:
                 pass
         
         # Replace eval() with direct execution where possible
@@ -75,7 +75,7 @@ class JSDeobfuscator:
                 # Only replace if it's a simple string literal
                 if not any(char in eval_code for char in ['+', '(', ')', '{', '}']):
                     deobfuscated = deobfuscated.replace(match.group(0), eval_code)
-            except:
+            except Exception:
                 pass
         
         logger.info(f"Deobfuscated strings (original: {len(code)} chars, deobfuscated: {len(deobfuscated)} chars)")

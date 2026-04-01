@@ -144,6 +144,15 @@ async def browser_context_manager(url: Optional[str] = None):
         # This allows context reuse and prevents "Target closed" errors
 
 
+async def navigate_to_url(page, url: str):
+    """Navigate a page to a URL, recording the response in the rate limiter."""
+    wait_until = "networkidle" if config.wait_for_network_idle else "load"
+    response = await page.goto(url, wait_until=wait_until, timeout=config.navigation_timeout * 1000)
+    if response:
+        rate_limiter.record_response(url, response.status)
+    return response
+
+
 @server.list_tools()
 async def list_tools() -> List[Tool]:
     """List available tools."""
@@ -399,13 +408,17 @@ async def list_tools() -> List[Tool]:
         ),
         Tool(
             name="save_session",
-            description="Save a browser session (cookies, localStorage, etc.) for later reuse.",
+            description="Save a browser session (cookies, localStorage, sessionStorage) for later reuse. Provide a URL to capture live browser state from that page, or omit to persist an already-created session.",
             inputSchema={
                 "type": "object",
                 "properties": {
                     "session_id": {
                         "type": "string",
                         "description": "Session ID to save"
+                    },
+                    "url": {
+                        "type": "string",
+                        "description": "Optional URL to navigate to and capture live cookies/storage from"
                     }
                 },
                 "required": ["session_id"]
@@ -1111,13 +1124,24 @@ async def list_tools() -> List[Tool]:
     ]
 
 
+_tool_schema_cache: Optional[Dict[str, Any]] = None
+
+
+async def get_tool_schema_map() -> Dict[str, Any]:
+    """Return a cached map of tool name -> Tool for schema validation."""
+    global _tool_schema_cache
+    if _tool_schema_cache is None:
+        tools = await list_tools()
+        _tool_schema_cache = {t.name: t for t in tools}
+    return _tool_schema_cache
+
+
 @server.call_tool()
 async def call_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
     """Handle tool calls with comprehensive error handling."""
     try:
-        # Get tool schema for validation
-        tools = await list_tools()
-        tool_schema = next((t for t in tools if t.name == name), None)
+        # Get tool schema for validation (cached after first call)
+        tool_schema = (await get_tool_schema_map()).get(name)
         
         if not tool_schema:
             return [TextContent(
@@ -1287,12 +1311,7 @@ async def handle_deep_analyze(arguments: Dict[str, Any]) -> Dict[str, Any]:
             await network_interceptor.start_intercepting(page)
             
             # Navigate to URL
-            wait_until = "networkidle" if config.wait_for_network_idle else "load"
-            response = await page.goto(url, wait_until=wait_until, timeout=config.navigation_timeout * 1000)
-            
-            # Record response for rate limiting
-            if response:
-                rate_limiter.record_response(url, response.status)
+            response = await navigate_to_url(page, url)
             
             # Get page content
             content = await page.content()
@@ -1351,12 +1370,7 @@ async def handle_discover_apis(arguments: Dict[str, Any]) -> Dict[str, Any]:
     async with browser_context_manager(url=url) as page:
         try:
             await network_interceptor.start_intercepting(page)
-            wait_until = "networkidle" if config.wait_for_network_idle else "load"
-            response = await page.goto(url, wait_until=wait_until, timeout=config.navigation_timeout * 1000)
-            
-            # Record response for rate limiting
-            if response:
-                rate_limiter.record_response(url, response.status)
+            response = await navigate_to_url(page, url)
             
             requests = await network_interceptor.capture_all_requests()
             responses = await network_interceptor.capture_all_responses()
@@ -1449,12 +1463,7 @@ async def handle_analyze_websocket(arguments: Dict[str, Any]) -> Dict[str, Any]:
     async with browser_context_manager(url=url) as page:
         try:
             await network_interceptor.start_intercepting(page)
-            wait_until = "networkidle" if config.wait_for_network_idle else "load"
-            response = await page.goto(url, wait_until=wait_until, timeout=config.navigation_timeout * 1000)
-            
-            # Record response for rate limiting
-            if response:
-                rate_limiter.record_response(url, response.status)
+            response = await navigate_to_url(page, url)
             
             # Wait for WebSocket connections
             await asyncio.sleep(wait_time)
@@ -1509,12 +1518,7 @@ async def handle_record_session(arguments: Dict[str, Any]) -> Dict[str, Any]:
         recording_storage.register_active_recording(recording)
         
         # Navigate to URL
-        wait_until = "networkidle" if config.wait_for_network_idle else "load"
-        response = await page.goto(url, wait_until=wait_until, timeout=config.navigation_timeout * 1000)
-        
-        # Record response for rate limiting
-        if response:
-            rate_limiter.record_response(url, response.status)
+        response = await navigate_to_url(page, url)
         
         # Store active recording
         _active_recordings[recording.id] = (recorder, page, context)
@@ -1720,12 +1724,7 @@ async def handle_analyze_auth(arguments: Dict[str, Any]) -> Dict[str, Any]:
     async with browser_context_manager(url=url) as page:
         try:
             await network_interceptor.start_intercepting(page)
-            wait_until = "networkidle" if config.wait_for_network_idle else "load"
-            response = await page.goto(url, wait_until=wait_until, timeout=config.navigation_timeout * 1000)
-            
-            # Record response for rate limiting
-            if response:
-                rate_limiter.record_response(url, response.status)
+            response = await navigate_to_url(page, url)
             
             requests = await network_interceptor.capture_all_requests()
             
@@ -1759,12 +1758,7 @@ async def handle_detect_protection(arguments: Dict[str, Any]) -> Dict[str, Any]:
     
     async with browser_context_manager(url=url) as page:
         try:
-            wait_until = "networkidle" if config.wait_for_network_idle else "load"
-            response = await page.goto(url, wait_until=wait_until, timeout=config.navigation_timeout * 1000)
-            
-            # Record response for rate limiting
-            if response:
-                rate_limiter.record_response(url, response.status)
+            response = await navigate_to_url(page, url)
             content = await page.content()
             
             headers = response.headers if response else {}
@@ -1929,15 +1923,66 @@ async def handle_health_check(arguments: Dict[str, Any]) -> Dict[str, Any]:
 async def handle_save_session(arguments: Dict[str, Any]) -> Dict[str, Any]:
     """Handle save_session tool."""
     session_id = arguments["session_id"]
-    
+    url = arguments.get("url")
+
     try:
-        # Check if there's an active recording with this session_id
-        # For now, we'll create/update a session from current browser state
-        # In a real implementation, we'd capture cookies/storage from an active browser context
-        
-        result = await session_manager.save_session(session_id)
-        return result
-    
+        if url:
+            # Capture live browser state by navigating to the URL
+            async with browser_context_manager(url) as (context, page):
+                await navigate_to_url(page, url)
+
+                # Extract cookies
+                raw_cookies = await context.cookies()
+                cookies = {c["name"]: c["value"] for c in raw_cookies}
+
+                # Extract localStorage
+                local_storage = {}
+                try:
+                    local_storage = await page.evaluate("""() => {
+                        const s = {};
+                        for (let i = 0; i < localStorage.length; i++) {
+                            const k = localStorage.key(i);
+                            s[k] = localStorage.getItem(k);
+                        }
+                        return s;
+                    }""")
+                except Exception:
+                    pass
+
+                # Extract sessionStorage
+                session_storage = {}
+                try:
+                    session_storage = await page.evaluate("""() => {
+                        const s = {};
+                        for (let i = 0; i < sessionStorage.length; i++) {
+                            const k = sessionStorage.key(i);
+                            s[k] = sessionStorage.getItem(k);
+                        }
+                        return s;
+                    }""")
+                except Exception:
+                    pass
+
+            await session_manager.save_session_state(
+                session_id,
+                cookies=cookies,
+                local_storage=local_storage,
+                session_storage=session_storage,
+            )
+            await session_manager.persist_to_disk()
+            return {
+                "status": "saved",
+                "session_id": session_id,
+                "cookies_count": len(cookies),
+                "local_storage_count": len(local_storage),
+                "session_storage_count": len(session_storage),
+                "timestamp": datetime.now().isoformat(),
+            }
+        else:
+            # Persist an already-existing session (created via create_session)
+            result = await session_manager.save_session(session_id)
+            return result
+
     except Exception as e:
         logger.error(f"Error saving session {session_id}: {e}", exc_info=True)
         return {
@@ -2085,12 +2130,7 @@ async def handle_take_screenshot(arguments: Dict[str, Any]) -> Dict[str, Any]:
     async with browser_context_manager(url=url) as page:
         try:
             # Navigate to URL
-            wait_until = "networkidle" if config.wait_for_network_idle else "load"
-            response = await page.goto(url, wait_until=wait_until, timeout=config.navigation_timeout * 1000)
-            
-            # Record response for rate limiting
-            if response:
-                rate_limiter.record_response(url, response.status)
+            response = await navigate_to_url(page, url)
             
             # Wait for selector if specified
             if wait_for and wait_for not in ["load", "networkidle"]:
@@ -2125,11 +2165,7 @@ async def handle_extract_article(arguments: Dict[str, Any]) -> Dict[str, Any]:
     
     async with browser_context_manager(url=url) as page:
         try:
-            wait_until = "networkidle" if config.wait_for_network_idle else "load"
-            response = await page.goto(url, wait_until=wait_until, timeout=config.navigation_timeout * 1000)
-            
-            if response:
-                rate_limiter.record_response(url, response.status)
+            response = await navigate_to_url(page, url)
             
             html = await page.content()
             
@@ -2172,11 +2208,7 @@ async def handle_solve_captcha(arguments: Dict[str, Any]) -> Dict[str, Any]:
     
     async with browser_context_manager(url=url) as page:
         try:
-            wait_until = "networkidle" if config.wait_for_network_idle else "load"
-            response = await page.goto(url, wait_until=wait_until, timeout=config.navigation_timeout * 1000)
-            
-            if response:
-                rate_limiter.record_response(url, response.status)
+            response = await navigate_to_url(page, url)
             
             content = await page.content()
             
@@ -2227,11 +2259,7 @@ async def handle_detect_technology(arguments: Dict[str, Any]) -> Dict[str, Any]:
     
     async with browser_context_manager(url=url) as page:
         try:
-            wait_until = "networkidle" if config.wait_for_network_idle else "load"
-            response = await page.goto(url, wait_until=wait_until, timeout=config.navigation_timeout * 1000)
-            
-            if response:
-                rate_limiter.record_response(url, response.status)
+            response = await navigate_to_url(page, url)
             
             html = await page.content()
             headers = dict(response.headers) if response else {}
@@ -2276,11 +2304,7 @@ async def handle_smart_extract(arguments: Dict[str, Any]) -> Dict[str, Any]:
     
     async with browser_context_manager(url=url) as page:
         try:
-            wait_until = "networkidle" if config.wait_for_network_idle else "load"
-            response = await page.goto(url, wait_until=wait_until, timeout=config.navigation_timeout * 1000)
-            
-            if response:
-                rate_limiter.record_response(url, response.status)
+            response = await navigate_to_url(page, url)
             
             html = await page.content()
             
@@ -2319,11 +2343,7 @@ async def handle_convert_to_markdown(arguments: Dict[str, Any]) -> Dict[str, Any
     
     async with browser_context_manager(url=url) as page:
         try:
-            wait_until = "networkidle" if config.wait_for_network_idle else "load"
-            response = await page.goto(url, wait_until=wait_until, timeout=config.navigation_timeout * 1000)
-            
-            if response:
-                rate_limiter.record_response(url, response.status)
+            response = await navigate_to_url(page, url)
             
             html = await page.content()
             
@@ -2654,11 +2674,7 @@ async def handle_execute_js(arguments: Dict[str, Any]) -> Dict[str, Any]:
     
     async with browser_context_manager(url=url) as page:
         try:
-            wait_until = "networkidle" if config.wait_for_network_idle else "load"
-            response = await page.goto(url, wait_until=wait_until, timeout=config.navigation_timeout * 1000)
-            
-            if response:
-                rate_limiter.record_response(url, response.status)
+            response = await navigate_to_url(page, url)
             
             if wait_for and wait_for not in ["load", "networkidle"]:
                 await page.wait_for_selector(wait_for, timeout=10000)
@@ -2684,11 +2700,7 @@ async def handle_get_cookies(arguments: Dict[str, Any]) -> Dict[str, Any]:
     
     async with browser_context_manager(url=url) as page:
         try:
-            wait_until = "networkidle" if config.wait_for_network_idle else "load"
-            response = await page.goto(url, wait_until=wait_until, timeout=config.navigation_timeout * 1000)
-            
-            if response:
-                rate_limiter.record_response(url, response.status)
+            response = await navigate_to_url(page, url)
             
             cookies = await page.context.cookies()
             
@@ -2724,11 +2736,7 @@ async def handle_get_storage(arguments: Dict[str, Any]) -> Dict[str, Any]:
     
     async with browser_context_manager(url=url) as page:
         try:
-            wait_until = "networkidle" if config.wait_for_network_idle else "load"
-            response = await page.goto(url, wait_until=wait_until, timeout=config.navigation_timeout * 1000)
-            
-            if response:
-                rate_limiter.record_response(url, response.status)
+            response = await navigate_to_url(page, url)
             
             # Get localStorage
             local_storage = await page.evaluate("""
@@ -2881,11 +2889,7 @@ async def handle_extract_links(arguments: Dict[str, Any]) -> Dict[str, Any]:
     
     async with browser_context_manager(url=url) as page:
         try:
-            wait_until = "networkidle" if config.wait_for_network_idle else "load"
-            response = await page.goto(url, wait_until=wait_until, timeout=config.navigation_timeout * 1000)
-            
-            if response:
-                rate_limiter.record_response(url, response.status)
+            response = await navigate_to_url(page, url)
             
             from urllib.parse import urlparse, urljoin
             base_domain = urlparse(url).netloc
@@ -2943,11 +2947,7 @@ async def handle_extract_forms(arguments: Dict[str, Any]) -> Dict[str, Any]:
     
     async with browser_context_manager(url=url) as page:
         try:
-            wait_until = "networkidle" if config.wait_for_network_idle else "load"
-            response = await page.goto(url, wait_until=wait_until, timeout=config.navigation_timeout * 1000)
-            
-            if response:
-                rate_limiter.record_response(url, response.status)
+            response = await navigate_to_url(page, url)
             
             forms = await page.evaluate("""
                 () => {
@@ -3000,11 +3000,7 @@ async def handle_extract_metadata(arguments: Dict[str, Any]) -> Dict[str, Any]:
     
     async with browser_context_manager(url=url) as page:
         try:
-            wait_until = "networkidle" if config.wait_for_network_idle else "load"
-            response = await page.goto(url, wait_until=wait_until, timeout=config.navigation_timeout * 1000)
-            
-            if response:
-                rate_limiter.record_response(url, response.status)
+            response = await navigate_to_url(page, url)
             
             metadata = await page.evaluate("""
                 () => {
@@ -3075,11 +3071,7 @@ async def handle_extract_tables(arguments: Dict[str, Any]) -> Dict[str, Any]:
     
     async with browser_context_manager(url=url) as page:
         try:
-            wait_until = "networkidle" if config.wait_for_network_idle else "load"
-            response = await page.goto(url, wait_until=wait_until, timeout=config.navigation_timeout * 1000)
-            
-            if response:
-                rate_limiter.record_response(url, response.status)
+            response = await navigate_to_url(page, url)
             
             tables = await page.evaluate("""
                 () => {
@@ -3178,11 +3170,7 @@ async def handle_execute_cdp(arguments: Dict[str, Any]) -> Dict[str, Any]:
         page.set_default_timeout(config.navigation_timeout * 1000)
         await apply_stealth_to_page(context, page)
         
-        wait_until = "networkidle" if config.wait_for_network_idle else "load"
-        response = await page.goto(url, wait_until=wait_until, timeout=config.navigation_timeout * 1000)
-        
-        if response:
-            rate_limiter.record_response(url, response.status)
+        response = await navigate_to_url(page, url)
         
         # Create CDP client
         cdp_client = CDPClient(context)
@@ -3226,11 +3214,7 @@ async def handle_get_dom_tree(arguments: Dict[str, Any]) -> Dict[str, Any]:
         page.set_default_timeout(config.navigation_timeout * 1000)
         await apply_stealth_to_page(context, page)
         
-        wait_until = "networkidle" if config.wait_for_network_idle else "load"
-        response = await page.goto(url, wait_until=wait_until, timeout=config.navigation_timeout * 1000)
-        
-        if response:
-            rate_limiter.record_response(url, response.status)
+        response = await navigate_to_url(page, url)
         
         # Create CDP client
         cdp_client = CDPClient(context)
@@ -3359,11 +3343,7 @@ async def handle_analyze_resources(arguments: Dict[str, Any]) -> Dict[str, Any]:
     
     async with browser_context_manager(url=url) as page:
         try:
-            wait_until = "networkidle" if config.wait_for_network_idle else "load"
-            response = await page.goto(url, wait_until=wait_until, timeout=config.navigation_timeout * 1000)
-            
-            if response:
-                rate_limiter.record_response(url, response.status)
+            response = await navigate_to_url(page, url)
             
             resources = await page.evaluate("""
                 () => {
@@ -3413,11 +3393,7 @@ async def handle_check_accessibility(arguments: Dict[str, Any]) -> Dict[str, Any
     
     async with browser_context_manager(url=url) as page:
         try:
-            wait_until = "networkidle" if config.wait_for_network_idle else "load"
-            response = await page.goto(url, wait_until=wait_until, timeout=config.navigation_timeout * 1000)
-            
-            if response:
-                rate_limiter.record_response(url, response.status)
+            response = await navigate_to_url(page, url)
             
             # Basic accessibility checks
             issues = await page.evaluate("""
@@ -3690,7 +3666,7 @@ async def handle_monitor_network(arguments: Dict[str, Any]) -> Dict[str, Any]:
                 "filter_type": filter_type,
                 "requests": requests_data,
                 "total": len(requests_data),
-                "by_type": {},  # Count by type
+                "by_type": {t: sum(1 for r in requests_data if r.get("type") == t) for t in {r.get("type") for r in requests_data}},
                 "timestamp": datetime.now().isoformat(),
             }
         except Exception as e:
@@ -3710,11 +3686,7 @@ async def handle_fill_form(arguments: Dict[str, Any]) -> Dict[str, Any]:
     
     async with browser_context_manager(url=url) as page:
         try:
-            wait_until = "networkidle" if config.wait_for_network_idle else "load"
-            response = await page.goto(url, wait_until=wait_until, timeout=config.navigation_timeout * 1000)
-            
-            if response:
-                rate_limiter.record_response(url, response.status)
+            response = await navigate_to_url(page, url)
             
             filled_fields = []
             

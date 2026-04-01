@@ -105,9 +105,31 @@ if __name__ == "__main__":
         return code
     
     def to_playwright_script(self, crawler: CrawlerDefinition) -> str:
-        """Convert crawler to Playwright script."""
-        # Similar to Python code but in Playwright test format
-        return self.to_python_code(crawler)
+        """Convert crawler to Playwright test script."""
+        func_name = crawler.name.lower().replace(" ", "_").replace("-", "_")
+        code = f'"""Generated Playwright test for: {crawler.description}"""\n\n'
+        code += "import pytest\n"
+        code += "from playwright.sync_api import Page\n\n\n"
+        code += f"def test_{func_name}(page: Page) -> None:\n"
+
+        for step in crawler.steps:
+            action = step.get("action")
+            if action == "navigate":
+                code += f'    page.goto("{step.get("url")}")\n'
+            elif action == "click":
+                code += f'    page.locator("{step.get("selector")}").click()\n'
+            elif action == "fill":
+                code += f'    page.locator("{step.get("selector")}").fill("{step.get("value", "")}")\n'
+            elif action == "wait":
+                timeout = step.get("timeout", 1000)
+                code += f"    page.wait_for_timeout({timeout})\n"
+            elif action == "screenshot":
+                code += f'    page.screenshot(path="{step.get("path", "screenshot.png")}")\n'
+
+        if not crawler.steps:
+            code += "    pass\n"
+
+        return code
 
 
 

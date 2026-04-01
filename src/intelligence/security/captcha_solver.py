@@ -177,7 +177,7 @@ class CaptchaSolver:
                         iframe = await iframe_element.content_frame()
                         if iframe:
                             break
-                except:
+                except Exception:
                     continue
             
             if not iframe:
@@ -218,7 +218,7 @@ class CaptchaSolver:
                         if token:
                             logger.info("Successfully solved reCAPTCHA v2 via browser automation (JS)")
                             return token
-                    except:
+                    except Exception:
                         pass
                         
             except Exception as e:

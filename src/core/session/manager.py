@@ -5,6 +5,7 @@ import logging
 import os
 import json
 import base64
+import secrets
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
@@ -156,6 +157,7 @@ class SessionManager:
         
         # Initialize encryption
         self._cipher = None
+        self._encryption_password: Optional[bytes] = None
         if encryption_key:
             self._init_encryption(encryption_key)
         elif os.getenv("CRAWILFY_ENCRYPTION_KEY"):
@@ -165,39 +167,45 @@ class SessionManager:
         self._load_from_disk()
     
     def _init_encryption(self, key: str) -> None:
-        """Initialize encryption with provided key."""
-        try:
-            # Derive key from password using PBKDF2
-            kdf = PBKDF2HMAC(
-                algorithm=hashes.SHA256(),
-                length=32,
-                salt=b'crawilfy_salt',  # In production, use random salt per session
-                iterations=100000,
-            )
-            key_bytes = kdf.derive(key.encode())
-            key_b64 = base64.urlsafe_b64encode(key_bytes)
-            self._cipher = Fernet(key_b64)
-            logger.info("Encryption initialized")
-        except Exception as e:
-            logger.warning(f"Failed to initialize encryption: {e}")
-            self._cipher = None
-    
+        """Initialize encryption with provided key (stored for per-encrypt salt derivation)."""
+        self._encryption_password = key.encode()
+        self._cipher = True  # Sentinel — actual cipher is derived per call
+        logger.info("Encryption initialized")
+
+    def _derive_fernet(self, salt: bytes) -> Fernet:
+        """Derive a Fernet key from the stored password and the given salt."""
+        kdf = PBKDF2HMAC(
+            algorithm=hashes.SHA256(),
+            length=32,
+            salt=salt,
+            iterations=100000,
+        )
+        key_bytes = kdf.derive(self._encryption_password)
+        return Fernet(base64.urlsafe_b64encode(key_bytes))
+
     def _encrypt(self, data: str) -> str:
-        """Encrypt sensitive data."""
+        """Encrypt data with a random salt prepended to the ciphertext."""
         if not self._cipher:
             return data
         try:
-            return self._cipher.encrypt(data.encode()).decode()
+            salt = secrets.token_bytes(16)
+            fernet = self._derive_fernet(salt)
+            token = fernet.encrypt(data.encode())
+            # Store as base64(salt + token)
+            return base64.urlsafe_b64encode(salt + token).decode()
         except Exception as e:
             logger.error(f"Encryption failed: {e}")
             return data
-    
+
     def _decrypt(self, data: str) -> str:
-        """Decrypt sensitive data."""
+        """Decrypt data, extracting the salt from the first 16 bytes."""
         if not self._cipher:
             return data
         try:
-            return self._cipher.decrypt(data.encode()).decode()
+            raw = base64.urlsafe_b64decode(data.encode())
+            salt, token = raw[:16], raw[16:]
+            fernet = self._derive_fernet(salt)
+            return fernet.decrypt(token).decode()
         except Exception as e:
             logger.error(f"Decryption failed: {e}")
             return data

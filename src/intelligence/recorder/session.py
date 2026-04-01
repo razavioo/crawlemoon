@@ -155,7 +155,7 @@ class SessionRecorder:
         try:
             if hasattr(event, 'target'):
                 selector = str(event.target)
-        except:
+        except Exception:
             pass
         
         event_obj = Event(
@@ -243,7 +243,7 @@ class SessionRecorder:
                     return storage;
                 }""")
                 local_storage = storage or {}
-            except:
+            except Exception:
                 pass
             
             snapshot = StateSnapshot(

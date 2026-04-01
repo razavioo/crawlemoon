@@ -236,13 +236,13 @@ class BotDetectionAnalyzer:
         if rate_limit:
             try:
                 info.requests_per_minute = int(rate_limit)
-            except:
+            except Exception:
                 pass
-        
+
         if retry_after:
             try:
                 info.block_duration = int(retry_after)
-            except:
+            except Exception:
                 pass
         
         # Analyze response times for patterns

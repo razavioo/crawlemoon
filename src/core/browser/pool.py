@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import time
 from dataclasses import dataclass
 from typing import Optional, Dict, List
 from datetime import datetime, timedelta
@@ -122,10 +123,21 @@ class BrowserPool:
             if len(self._instances) < self.max_size:
                 return await self._create_new_instance(**context_options)
             
-            # Wait and retry if pool is full
-            logger.warning("Browser pool is full, waiting...")
+        # Pool is full — wait iteratively instead of recursing
+        logger.warning("Browser pool is full, waiting for a slot...")
+        deadline = time.monotonic() + 30
+        while True:
             await asyncio.sleep(1)
-            return await self.acquire(url=url, **context_options)
+            async with self._lock:
+                for instance in self._instances:
+                    if not instance.is_expired() and not instance.is_overused():
+                        instance.last_used = datetime.now()
+                        instance.usage_count += 1
+                        return instance.context
+                if len(self._instances) < self.max_size:
+                    return await self._create_new_instance(**context_options)
+            if time.monotonic() > deadline:
+                raise TimeoutError("Browser pool exhausted: no slot available after 30s")
     
     async def _create_new_instance(self, **context_options) -> BrowserContext:
         """Create a new browser instance."""

@@ -7,7 +7,6 @@ from typing import Optional, Any, Dict
 from dataclasses import dataclass
 import json
 
-from cachetools import TTLCache
 
 logger = logging.getLogger(__name__)
 
