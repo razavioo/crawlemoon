@@ -1,9 +1,16 @@
-"""Stealth HTTP client with TLS fingerprint impersonation using curl_cffi."""
+"""Stealth HTTP client with TLS fingerprint impersonation using curl_cffi.
+
+Connection pooling is handled transparently by curl_cffi's ``Session`` object,
+which keeps persistent connections alive across requests.
+"""
 
 import logging
 from typing import Optional, Dict, Any
-from curl_cffi import requests
+
+from curl_cffi import requests as cffi_requests
 from fake_useragent import UserAgent
+
+from ...exceptions import HTTPRequestError
 
 logger = logging.getLogger(__name__)
 
@@ -24,10 +31,41 @@ BROWSER_PROFILES = {
     "ff104": "ff104",
 }
 
+_DEFAULT_GET_HEADERS = {
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Accept-Encoding": "gzip, deflate, br",
+    "DNT": "1",
+    "Connection": "keep-alive",
+    "Upgrade-Insecure-Requests": "1",
+    "Sec-Fetch-Dest": "document",
+    "Sec-Fetch-Mode": "navigate",
+    "Sec-Fetch-Site": "none",
+    "Sec-Fetch-User": "?1",
+}
+
+_DEFAULT_POST_HEADERS = {
+    "Accept": "application/json, text/plain, */*",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Sec-Fetch-Dest": "empty",
+    "Sec-Fetch-Mode": "cors",
+    "Sec-Fetch-Site": "same-origin",
+}
+
 
 class StealthHTTPClient:
-    """HTTP client with TLS fingerprint impersonation for bypassing bot detection."""
-    
+    """HTTP client with TLS fingerprint impersonation and connection pooling.
+
+    Uses ``curl_cffi.requests.Session`` to maintain a persistent connection pool,
+    reducing handshake overhead for repeated requests to the same host.
+
+    Args:
+        browser_profile: Browser profile to impersonate (e.g. ``chrome120``).
+        timeout: Request timeout in seconds.
+        verify: Whether to verify SSL certificates.
+        proxies: Optional proxy configuration dict (``{"https": "http://..."}``).
+    """
+
     def __init__(
         self,
         browser_profile: str = "chrome120",
@@ -35,184 +73,187 @@ class StealthHTTPClient:
         verify: bool = True,
         proxies: Optional[Dict[str, str]] = None,
     ):
-        """Initialize stealth HTTP client.
-        
-        Args:
-            browser_profile: Browser profile to impersonate (chrome120, edge120, etc.)
-            timeout: Request timeout in seconds
-            verify: Verify SSL certificates
-            proxies: Optional proxy configuration
-        """
+        if browser_profile not in BROWSER_PROFILES.values():
+            logger.warning(
+                "Unknown browser profile %r — falling back to chrome120", browser_profile
+            )
+            browser_profile = "chrome120"
+
         self.browser_profile = browser_profile
         self.timeout = timeout
         self.verify = verify
         self.proxies = proxies
         self.ua = UserAgent()
-        
-        # Validate browser profile
-        if browser_profile not in BROWSER_PROFILES.values():
-            logger.warning(f"Unknown browser profile: {browser_profile}, using chrome120")
-            self.browser_profile = "chrome120"
-    
+
+        # Persistent session for connection pooling
+        self._session = cffi_requests.Session(impersonate=self.browser_profile)
+
+    # ------------------------------------------------------------------
+    # Internal
+    # ------------------------------------------------------------------
+
+    def _base_headers(self) -> Dict[str, str]:
+        return {"User-Agent": self.ua.random}
+
+    def _common_kwargs(self) -> Dict[str, Any]:
+        return {
+            "timeout": self.timeout,
+            "verify": self.verify,
+            "proxies": self.proxies,
+        }
+
+    # ------------------------------------------------------------------
+    # Public request methods
+    # ------------------------------------------------------------------
+
     def get(
         self,
         url: str,
         headers: Optional[Dict[str, str]] = None,
         params: Optional[Dict[str, Any]] = None,
-        **kwargs
-    ) -> requests.Response:
+        **kwargs: Any,
+    ) -> cffi_requests.Response:
         """Make a GET request with TLS fingerprint impersonation.
-        
+
         Args:
-            url: Target URL
-            headers: Optional custom headers
-            params: Optional query parameters
-            **kwargs: Additional arguments passed to requests.get
-            
+            url: Target URL.
+            headers: Optional custom headers (merged with realistic defaults).
+            params: Optional query parameters.
+            **kwargs: Forwarded to the underlying session request.
+
         Returns:
-            Response object
+            Response object.
+
+        Raises:
+            HTTPRequestError: On network or protocol failure.
         """
-        headers = headers or {}
-        
-        # Use fake-useragent for realistic user agent
-        if "User-Agent" not in headers:
-            headers["User-Agent"] = self.ua.random
-        
-        # Set realistic headers
-        headers.setdefault("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8")
-        headers.setdefault("Accept-Language", "en-US,en;q=0.9")
-        headers.setdefault("Accept-Encoding", "gzip, deflate, br")
-        headers.setdefault("DNT", "1")
-        headers.setdefault("Connection", "keep-alive")
-        headers.setdefault("Upgrade-Insecure-Requests", "1")
-        headers.setdefault("Sec-Fetch-Dest", "document")
-        headers.setdefault("Sec-Fetch-Mode", "navigate")
-        headers.setdefault("Sec-Fetch-Site", "none")
-        headers.setdefault("Sec-Fetch-User", "?1")
-        
-        return requests.get(
-            url,
-            headers=headers,
-            params=params,
-            impersonate=self.browser_profile,
-            timeout=self.timeout,
-            verify=self.verify,
-            proxies=self.proxies,
-            **kwargs
-        )
-    
+        merged = {**_DEFAULT_GET_HEADERS, **self._base_headers(), **(headers or {})}
+        try:
+            return self._session.get(
+                url,
+                headers=merged,
+                params=params,
+                **self._common_kwargs(),
+                **kwargs,
+            )
+        except Exception as exc:
+            raise HTTPRequestError(f"GET {url} failed: {exc}") from exc
+
     def post(
         self,
         url: str,
         data: Optional[Any] = None,
         json: Optional[Dict[str, Any]] = None,
         headers: Optional[Dict[str, str]] = None,
-        **kwargs
-    ) -> requests.Response:
+        **kwargs: Any,
+    ) -> cffi_requests.Response:
         """Make a POST request with TLS fingerprint impersonation.
-        
+
         Args:
-            url: Target URL
-            data: Optional form data
-            json: Optional JSON data
-            headers: Optional custom headers
-            **kwargs: Additional arguments passed to requests.post
-            
+            url: Target URL.
+            data: Optional form data.
+            json: Optional JSON payload.
+            headers: Optional custom headers.
+            **kwargs: Forwarded to the underlying session request.
+
         Returns:
-            Response object
+            Response object.
+
+        Raises:
+            HTTPRequestError: On network or protocol failure.
         """
-        headers = headers or {}
-        
-        # Use fake-useragent for realistic user agent
-        if "User-Agent" not in headers:
-            headers["User-Agent"] = self.ua.random
-        
-        # Set realistic headers for POST
-        headers.setdefault("Accept", "application/json, text/plain, */*")
-        headers.setdefault("Accept-Language", "en-US,en;q=0.9")
-        headers.setdefault("Content-Type", "application/json" if json else "application/x-www-form-urlencoded")
-        headers.setdefault("Origin", url.split("/")[0] + "//" + url.split("/")[2])
-        headers.setdefault("Referer", url)
-        headers.setdefault("Sec-Fetch-Dest", "empty")
-        headers.setdefault("Sec-Fetch-Mode", "cors")
-        headers.setdefault("Sec-Fetch-Site", "same-origin")
-        
-        return requests.post(
-            url,
-            data=data,
-            json=json,
-            headers=headers,
-            impersonate=self.browser_profile,
-            timeout=self.timeout,
-            verify=self.verify,
-            proxies=self.proxies,
-            **kwargs
-        )
-    
+        content_type = "application/json" if json is not None else "application/x-www-form-urlencoded"
+        merged = {
+            **_DEFAULT_POST_HEADERS,
+            **self._base_headers(),
+            "Content-Type": content_type,
+            **(headers or {}),
+        }
+        try:
+            return self._session.post(
+                url,
+                data=data,
+                json=json,
+                headers=merged,
+                **self._common_kwargs(),
+                **kwargs,
+            )
+        except Exception as exc:
+            raise HTTPRequestError(f"POST {url} failed: {exc}") from exc
+
     def request(
         self,
         method: str,
         url: str,
         headers: Optional[Dict[str, str]] = None,
-        **kwargs
-    ) -> requests.Response:
-        """Make a custom request with TLS fingerprint impersonation.
-        
-        Args:
-            method: HTTP method (GET, POST, etc.)
-            url: Target URL
-            headers: Optional custom headers
-            **kwargs: Additional arguments passed to requests.request
-            
-        Returns:
-            Response object
-        """
-        headers = headers or {}
-        
-        # Use fake-useragent for realistic user agent
-        if "User-Agent" not in headers:
-            headers["User-Agent"] = self.ua.random
-        
-        return requests.request(
-            method,
-            url,
-            headers=headers,
-            impersonate=self.browser_profile,
-            timeout=self.timeout,
-            verify=self.verify,
-            proxies=self.proxies,
-            **kwargs
-        )
+        **kwargs: Any,
+    ) -> cffi_requests.Response:
+        """Make an arbitrary HTTP request with TLS fingerprint impersonation.
 
+        Args:
+            method: HTTP method string (``GET``, ``POST``, etc.).
+            url: Target URL.
+            headers: Optional custom headers.
+            **kwargs: Forwarded to the underlying session request.
+
+        Returns:
+            Response object.
+
+        Raises:
+            HTTPRequestError: On network or protocol failure.
+        """
+        merged = {**self._base_headers(), **(headers or {})}
+        try:
+            return self._session.request(
+                method,
+                url,
+                headers=merged,
+                **self._common_kwargs(),
+                **kwargs,
+            )
+        except Exception as exc:
+            raise HTTPRequestError(f"{method} {url} failed: {exc}") from exc
+
+    def close(self) -> None:
+        """Close the underlying connection pool."""
+        try:
+            self._session.close()
+        except Exception as exc:
+            logger.debug("Error closing stealth HTTP session: %s", exc)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_):
+        self.close()
+
+
+# ---------------------------------------------------------------------------
+# Factory
+# ---------------------------------------------------------------------------
 
 def create_stealth_client(
     browser: str = "chrome",
     version: Optional[str] = None,
     proxies: Optional[Dict[str, str]] = None,
 ) -> StealthHTTPClient:
-    """Create a stealth HTTP client with specified browser profile.
-    
+    """Create a stealth HTTP client for the given browser profile.
+
     Args:
-        browser: Browser type (chrome, edge, safari, firefox)
-        version: Browser version (optional, uses latest if not specified)
-        proxies: Optional proxy configuration
-        
+        browser: Browser type (``chrome``, ``edge``, ``safari``, ``firefox``).
+        version: Optional version suffix.  Uses latest when omitted.
+        proxies: Optional proxy configuration.
+
     Returns:
-        StealthHTTPClient instance
+        A configured :class:`StealthHTTPClient` instance.
     """
-    if browser == "chrome":
-        profile = f"chrome{version}" if version else "chrome120"
-    elif browser == "edge":
-        profile = f"edge{version}" if version else "edge120"
-    elif browser == "safari":
-        profile = f"safari{version}" if version else "safari17_0"
-    elif browser == "firefox":
-        profile = f"ff{version}" if version else "ff120"
-    else:
-        profile = "chrome120"
-    
+    profile_map = {
+        "chrome": f"chrome{version}" if version else "chrome120",
+        "edge": f"edge{version}" if version else "edge120",
+        "safari": f"safari{version}" if version else "safari17_0",
+        "firefox": f"ff{version}" if version else "ff120",
+    }
+    profile = profile_map.get(browser, "chrome120")
     if profile not in BROWSER_PROFILES.values():
         profile = "chrome120"
-    
     return StealthHTTPClient(browser_profile=profile, proxies=proxies)
-

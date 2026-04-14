@@ -37,6 +37,16 @@ from ..intelligence.extraction.smart import get_smart_extractor
 from ..intelligence.generator.crawler_gen import CrawlerGenerator
 from .config import MCPServerConfig
 from .utils import validate_url, validate_arguments, with_timeout, with_retry
+from .schemas import PYDANTIC_AVAILABLE
+from ..exceptions import (
+    RecordingNotFoundError,
+    RecordingExpiredError,
+    RecordingSerializationError,
+    BrowserPoolExhaustedError,
+    BrowserInitError,
+    ValidationError,
+)
+from playwright.async_api import Error as PlaywrightError
 
 logger = logging.getLogger(__name__)
 
@@ -138,8 +148,8 @@ async def browser_context_manager(url: Optional[str] = None):
         if page:
             try:
                 await page.close()
-            except Exception as e:
-                logger.warning(f"Error closing page: {e}")
+            except (PlaywrightError, AttributeError) as e:
+                logger.warning("Error closing page: %s", e)
         # Don't close the context - let the browser pool manage its lifecycle
         # This allows context reuse and prevents "Target closed" errors
 
@@ -1126,6 +1136,68 @@ async def list_tools() -> List[Tool]:
 
 _tool_schema_cache: Optional[Dict[str, Any]] = None
 
+# Map tool name -> Pydantic model class (populated lazily from schemas module)
+_PYDANTIC_SCHEMA_MAP: Optional[Dict[str, Any]] = None
+
+
+def _get_pydantic_schema_map() -> Dict[str, Any]:
+    """Return a dict mapping tool name → Pydantic model class."""
+    global _PYDANTIC_SCHEMA_MAP
+    if _PYDANTIC_SCHEMA_MAP is not None:
+        return _PYDANTIC_SCHEMA_MAP
+
+    from . import schemas as _s
+    _PYDANTIC_SCHEMA_MAP = {
+        "deep_analyze": _s.DeepAnalyzeArgs,
+        "discover_apis": _s.DiscoverAPIsArgs,
+        "introspect_graphql": _s.IntrospectGraphQLArgs,
+        "execute_graphql": _s.ExecuteGraphQLArgs,
+        "take_screenshot": _s.TakeScreenshotArgs,
+        "execute_js": _s.ExecuteJSArgs,
+        "extract_article": _s.ExtractArticleArgs,
+        "extract_links": _s.ExtractLinksArgs,
+        "extract_forms": _s.ExtractFormsArgs,
+        "extract_tables": _s.ExtractTablesArgs,
+        "extract_metadata": _s.ExtractMetadataArgs,
+        "convert_to_markdown": _s.ConvertToMarkdownArgs,
+        "smart_extract": _s.SmartExtractArgs,
+        "analyze_sitemap": _s.AnalyzeSitemapArgs,
+        "check_robots": _s.CheckRobotsArgs,
+        "monitor_network": _s.MonitorNetworkArgs,
+        "analyze_websocket": _s.AnalyzeWebSocketArgs,
+        "detect_protection": _s.DetectProtectionArgs,
+        "detect_technology": _s.DetectTechnologyArgs,
+        "analyze_auth": _s.AnalyzeAuthArgs,
+        "check_accessibility": _s.CheckAccessibilityArgs,
+        "fill_form": _s.FillFormArgs,
+        "get_cookies": _s.GetCookiesArgs,
+        "get_storage": _s.GetStorageArgs,
+        "get_dom_tree": _s.GetDOMTreeArgs,
+        "measure_performance": _s.MeasurePerformanceArgs,
+        "analyze_resources": _s.AnalyzeResourcesArgs,
+        "compare_pages": _s.ComparePagesArgs,
+        "deobfuscate_js": _s.DeobfuscateJSArgs,
+        "extract_from_js": _s.ExtractFromJSArgs,
+        "solve_captcha": _s.SolveCaptchaArgs,
+        "stealth_request": _s.StealthRequestArgs,
+        "add_proxy": _s.AddProxyArgs,
+        "remove_proxy": _s.RemoveProxyArgs,
+        "test_proxy": _s.TestProxyArgs,
+        "configure_proxies": _s.ConfigureProxiesArgs,
+        "configure_rate_limit": _s.ConfigureRateLimitArgs,
+        "save_session": _s.SaveSessionArgs,
+        "load_session": _s.LoadSessionArgs,
+        "record_session": _s.RecordSessionArgs,
+        "stop_recording": _s.StopRecordingArgs,
+        "get_recording_status": _s.GetRecordingStatusArgs,
+        "delete_recording": _s.DeleteRecordingArgs,
+        "export_recording": _s.ExportRecordingArgs,
+        "generate_crawler": _s.GenerateCrawlerArgs,
+        "execute_cdp": _s.ExecuteCDPArgs,
+        "clear_cache": _s.ClearCacheArgs,
+    }
+    return _PYDANTIC_SCHEMA_MAP
+
 
 async def get_tool_schema_map() -> Dict[str, Any]:
     """Return a cached map of tool name -> Tool for schema validation."""
@@ -1149,16 +1221,30 @@ async def call_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
                 text=json.dumps({"error": f"Unknown tool: {name}"}, ensure_ascii=False)
             )]
         
-        # Validate arguments
-        required = tool_schema.inputSchema.get("required", [])
-        is_valid, error_msg = validate_arguments(arguments, required, tool_schema.inputSchema)
-        
-        if not is_valid:
-            return [TextContent(
-                type="text",
-                text=json.dumps({"error": error_msg}, ensure_ascii=False)
-            )]
-        
+        # Validate arguments — prefer Pydantic model when available
+        if PYDANTIC_AVAILABLE:
+            schema_model = _get_pydantic_schema_map().get(name)
+            if schema_model is not None:
+                try:
+                    schema_model(**arguments)
+                except Exception as pydantic_err:
+                    return [TextContent(
+                        type="text",
+                        text=json.dumps(
+                            {"error": f"Invalid arguments: {pydantic_err}", "tool": name},
+                            ensure_ascii=False,
+                        ),
+                    )]
+        else:
+            # Fallback: JSON-schema-based validation
+            required = tool_schema.inputSchema.get("required", [])
+            is_valid, error_msg = validate_arguments(arguments, required, tool_schema.inputSchema)
+            if not is_valid:
+                return [TextContent(
+                    type="text",
+                    text=json.dumps({"error": error_msg}, ensure_ascii=False),
+                )]
+
         # Route to handler
         handler_map = {
             "deep_analyze": handle_deep_analyze,
@@ -1641,25 +1727,25 @@ async def handle_get_recording_status(arguments: Dict[str, Any]) -> Dict[str, An
                 }
         
         # Try loading from storage
-        recording = recording_storage.load_recording(recording_id)
-        
-        if recording:
+        try:
+            recording = recording_storage.load_recording(recording_id)
+        except (RecordingNotFoundError, RecordingExpiredError) as exc:
             return {
-                "recording_id": recording_id,
-                "status": "saved",
-                "start_time": recording.start_time.isoformat() if recording.start_time else None,
-                "end_time": recording.end_time.isoformat() if recording.end_time else None,
-                "duration": recording.duration,
-                "events_count": len(recording.events),
-                "snapshots_count": len(recording.state_snapshots),
-                "network_events_count": len(recording.network),
-            }
-        else:
-            return {
-                "error": f"Recording {recording_id} not found",
+                "error": str(exc),
                 "recording_id": recording_id,
             }
-    
+
+        return {
+            "recording_id": recording_id,
+            "status": "saved",
+            "start_time": recording.start_time.isoformat() if recording.start_time else None,
+            "end_time": recording.end_time.isoformat() if recording.end_time else None,
+            "duration": recording.duration,
+            "events_count": len(recording.events),
+            "snapshots_count": len(recording.state_snapshots),
+            "network_events_count": len(recording.network),
+        }
+
     except Exception as e:
         logger.error(f"Error getting recording status for {recording_id}: {e}", exc_info=True)
         raise
@@ -1672,14 +1758,14 @@ async def handle_generate_crawler(arguments: Dict[str, Any]) -> Dict[str, Any]:
     
     try:
         # Load recording from storage
-        recording = recording_storage.load_recording(recording_id)
-        
-        if not recording:
+        try:
+            recording = recording_storage.load_recording(recording_id)
+        except (RecordingNotFoundError, RecordingExpiredError) as exc:
             return {
-                "error": f"Recording {recording_id} not found. Please provide a valid recording ID or file path.",
+                "error": str(exc),
                 "recording_id": recording_id,
             }
-        
+
         # Generate crawler
         generator = CrawlerGenerator()
         crawler_def = generator.from_recording(recording)
@@ -1946,7 +2032,7 @@ async def handle_save_session(arguments: Dict[str, Any]) -> Dict[str, Any]:
                         }
                         return s;
                     }""")
-                except Exception:
+                except (PlaywrightError, AttributeError):
                     pass
 
                 # Extract sessionStorage
@@ -2802,14 +2888,14 @@ async def handle_export_recording(arguments: Dict[str, Any]) -> Dict[str, Any]:
     export_format = arguments.get("format", "json")
     
     try:
-        recording = recording_storage.load_recording(recording_id)
-        
-        if not recording:
+        try:
+            recording = recording_storage.load_recording(recording_id)
+        except (RecordingNotFoundError, RecordingExpiredError) as exc:
             return {
-                "error": f"Recording {recording_id} not found",
+                "error": str(exc),
                 "recording_id": recording_id,
             }
-        
+
         if export_format == "json":
             # Return recording as JSON
             output = {

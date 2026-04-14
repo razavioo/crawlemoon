@@ -470,8 +470,8 @@ class APIDiscoveryEngine:
                     logger.warning(f"GraphQL introspection failed: {response.status_code}")
                     return None
         
-        except Exception as e:
-            logger.error(f"Error during GraphQL introspection: {e}")
+        except (httpx.HTTPError, httpx.RequestError, ValueError, KeyError) as exc:
+            logger.error("Error during GraphQL introspection at %s: %s", self.endpoint if hasattr(self, 'endpoint') else '?', exc)
             return None
     
     def extract_queries_mutations(self, schema: Dict) -> List[Operation]:
@@ -500,8 +500,8 @@ class APIDiscoveryEngine:
                     fields=[],
                 ))
         
-        except Exception as e:
-            logger.error(f"Error extracting operations: {e}")
+        except (KeyError, AttributeError, TypeError) as exc:
+            logger.error("Error extracting GraphQL operations: %s", exc)
         
         return operations
     

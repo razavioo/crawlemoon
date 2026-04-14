@@ -104,24 +104,28 @@ def test_unregister_active_recording(storage, sample_recording):
 
 def test_delete_recording(storage, sample_recording):
     """Test deleting a recording."""
+    from src.exceptions import RecordingNotFoundError
+
     # Save recording
     file_path = storage.save_recording(sample_recording)
     assert Path(file_path).exists()
-    
+
     # Delete recording
     deleted = storage.delete_recording(sample_recording.id)
     assert deleted is True
     assert not Path(file_path).exists()
-    
-    # Should not be loadable
-    loaded = storage.load_recording(sample_recording.id)
-    assert loaded is None
+
+    # Should raise after deletion
+    with pytest.raises(RecordingNotFoundError):
+        storage.load_recording(sample_recording.id)
 
 
 def test_load_nonexistent_recording(storage):
-    """Test loading a non-existent recording."""
-    loaded = storage.load_recording("nonexistent-id")
-    assert loaded is None
+    """Test loading a non-existent recording raises RecordingNotFoundError."""
+    from src.exceptions import RecordingNotFoundError
+
+    with pytest.raises(RecordingNotFoundError):
+        storage.load_recording("nonexistent-id")
 
 
 def test_load_recording_by_path(storage, sample_recording, temp_storage_dir):

@@ -6,7 +6,7 @@ from typing import List, Dict, Any, Optional
 from datetime import datetime
 from enum import Enum
 
-from playwright.async_api import Page
+from playwright.async_api import Page, Error as PlaywrightError
 
 logger = logging.getLogger(__name__)
 
@@ -116,8 +116,8 @@ class SessionRecorder:
                 await cdp_session.send('Network.enable')
                 await cdp_session.send('Page.enable')
                 self._cdp_session = cdp_session
-            except Exception as e:
-                logger.warning(f"Could not enable HAR recording: {e}")
+            except (PlaywrightError, AttributeError) as e:
+                logger.warning("Could not enable HAR recording: %s", e)
                 self._cdp_session = None
         else:
             self._cdp_session = None
@@ -155,9 +155,9 @@ class SessionRecorder:
         try:
             if hasattr(event, 'target'):
                 selector = str(event.target)
-        except Exception:
+        except (AttributeError, TypeError):
             pass
-        
+
         event_obj = Event(
             type=EventType.CLICK,
             timestamp=datetime.now(),
@@ -243,9 +243,9 @@ class SessionRecorder:
                     return storage;
                 }""")
                 local_storage = storage or {}
-            except Exception:
+            except PlaywrightError:
                 pass
-            
+
             snapshot = StateSnapshot(
                 url=url,
                 html=html,
@@ -257,8 +257,8 @@ class SessionRecorder:
             self._recording.state_snapshots.append(snapshot)
             logger.debug("State snapshot taken")
         
-        except Exception as e:
-            logger.error(f"Error taking snapshot: {e}")
+        except (PlaywrightError, AttributeError) as e:
+            logger.error("Error taking snapshot: %s", e)
     
     async def stop_recording(self) -> SessionRecording:
         """Stop recording and return session recording."""
@@ -281,8 +281,8 @@ class SessionRecorder:
                 # Actually, we need to collect HAR entries during recording
                 # For now, generate HAR from network events
                 self._recording.har_data = self._generate_har_from_network()
-            except Exception as e:
-                logger.warning(f"Error getting HAR data: {e}")
+            except (PlaywrightError, AttributeError) as e:
+                logger.warning("Error getting HAR data: %s", e)
                 self._recording.har_data = self._generate_har_from_network()
         else:
             # Generate HAR from network events

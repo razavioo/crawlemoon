@@ -135,8 +135,8 @@ class ContentExtractor:
                     if metadata.tags:
                         extracted.tags = metadata.tags
                 
-            except Exception as e:
-                logger.error(f"Error extracting with trafilatura: {e}")
+            except (ValueError, AttributeError, TypeError, RuntimeError) as e:
+                logger.error("Error extracting with trafilatura: %s", e)
         
         # Convert to markdown if requested and available
         if MARKDOWNIFY_AVAILABLE and extracted.html:
@@ -146,8 +146,8 @@ class ContentExtractor:
                     heading_style="ATX",
                     bullets="•",
                 )
-            except Exception as e:
-                logger.warning(f"Error converting to markdown: {e}")
+            except (ValueError, AttributeError, TypeError) as e:
+                logger.warning("Error converting to markdown: %s", e)
         elif MARKDOWNIFY_AVAILABLE and html:
             try:
                 extracted.markdown = md(
@@ -155,8 +155,8 @@ class ContentExtractor:
                     heading_style="ATX",
                     bullets="•",
                 )
-            except Exception as e:
-                logger.warning(f"Error converting to markdown: {e}")
+            except (ValueError, AttributeError, TypeError) as e:
+                logger.warning("Error converting to markdown: %s", e)
         
         # Extract images using selectolax if available
         if SELECTOLAX_AVAILABLE and include_images:
@@ -172,8 +172,8 @@ class ContentExtractor:
                             "title": img.attributes.get("title", ""),
                         })
                 extracted.images = images
-            except Exception as e:
-                logger.warning(f"Error extracting images: {e}")
+            except (ValueError, AttributeError, TypeError) as e:
+                logger.warning("Error extracting images: %s", e)
         
         return extracted
     
@@ -224,8 +224,8 @@ class ContentExtractor:
         if MARKDOWNIFY_AVAILABLE:
             try:
                 return md(html, heading_style="ATX", bullets="•")
-            except Exception as e:
-                logger.warning(f"Error converting to markdown: {e}")
+            except (ValueError, AttributeError, TypeError) as e:
+                logger.warning("Error converting to markdown: %s", e)
         
         # Last resort: return text
         return extracted.text or ""

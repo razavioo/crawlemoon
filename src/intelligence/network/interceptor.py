@@ -6,7 +6,7 @@ from typing import List, Dict, Any, Optional
 from datetime import datetime
 from enum import Enum
 
-from playwright.async_api import Page, Request, Response
+from playwright.async_api import Page, Request, Response, Error as PlaywrightError
 
 logger = logging.getLogger(__name__)
 
@@ -116,19 +116,19 @@ class DeepNetworkInterceptor:
             self.requests.append(captured)
             logger.debug(f"Captured request: {request.method} {request.url}")
         
-        except Exception as e:
-            logger.error(f"Error capturing request: {e}")
-    
+        except (PlaywrightError, AttributeError) as exc:
+            logger.debug("Error capturing request: %s", exc)
+
     async def _on_response(self, response: Response) -> None:
         """Handle response event."""
         try:
             headers = response.headers
-            
+
             # Try to get body (may be None for binary or large responses)
             body = None
             try:
                 body = await response.body()
-            except Exception:
+            except PlaywrightError:
                 pass
             
             captured = CapturedResponse(
@@ -142,26 +142,24 @@ class DeepNetworkInterceptor:
             self.responses.append(captured)
             logger.debug(f"Captured response: {response.status} {response.url}")
         
-        except Exception as e:
-            logger.error(f"Error capturing response: {e}")
-    
+        except (PlaywrightError, AttributeError) as exc:
+            logger.debug("Error capturing response: %s", exc)
+
     async def _on_websocket(self, websocket) -> None:
         """Handle WebSocket connection."""
         try:
             url = websocket.url
             session = WebSocketSession(url=url)
             self.websockets[url] = session
-            
-            # Listen to messages
+
             websocket.on("framesent", lambda event: self._on_ws_message_sent(url, event))
             websocket.on("framereceived", lambda event: self._on_ws_message_received(url, event))
-            
             websocket.on("close", lambda: self._on_ws_close(url))
-            
-            logger.info(f"WebSocket connected: {url}")
-        
-        except Exception as e:
-            logger.error(f"Error handling WebSocket: {e}")
+
+            logger.info("WebSocket connected: %s", url)
+
+        except (PlaywrightError, AttributeError) as exc:
+            logger.warning("Error handling WebSocket: %s", exc)
     
     def _on_ws_message_sent(self, url: str, event) -> None:
         """Handle WebSocket message sent."""
@@ -204,8 +202,8 @@ class DeepNetworkInterceptor:
         try:
             logger.info(f"Service worker registered: {worker.url}")
             # Additional service worker monitoring can be added here
-        except Exception as e:
-            logger.error(f"Error handling service worker: {e}")
+        except (PlaywrightError, AttributeError) as exc:
+            logger.warning("Error handling service worker: %s", exc)
     
     async def capture_all_requests(self) -> List[CapturedRequest]:
         """Get all captured requests."""

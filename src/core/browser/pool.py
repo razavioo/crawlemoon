@@ -14,9 +14,11 @@ from playwright.async_api import (
     Page,
     async_playwright,
     Playwright,
+    Error as PlaywrightError,
 )
 
 from .proxy_pool import ProxyPool, RotationStrategy
+from ...exceptions import BrowserInitError, BrowserPoolExhaustedError, BrowserPoolError
 
 logger = logging.getLogger(__name__)
 
@@ -65,8 +67,25 @@ class BrowserPool:
     
     async def initialize(self) -> None:
         """Initialize Playwright and browser pool."""
-        self._playwright = await async_playwright().start()
-        logger.info("Browser pool initialized")
+        try:
+            self._playwright = await async_playwright().start()
+            logger.info("Browser pool initialized")
+        except Exception as exc:
+            raise BrowserInitError(f"Failed to start Playwright: {exc}") from exc
+
+    async def warmup(self, count: int = 1) -> None:
+        """Pre-create *count* browser instances so the first real request is fast.
+
+        Args:
+            count: Number of instances to create eagerly (capped at max_size).
+        """
+        count = min(count, self.max_size)
+        logger.info("Browser pool warmup: creating %d instance(s)", count)
+        tasks = [self._create_new_instance() for _ in range(count)]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        for i, result in enumerate(results):
+            if isinstance(result, Exception):
+                logger.warning("Warmup instance %d failed: %s", i, result)
     
     async def close(self) -> None:
         """Close all browser instances and Playwright."""
@@ -137,18 +156,25 @@ class BrowserPool:
                 if len(self._instances) < self.max_size:
                     return await self._create_new_instance(**context_options)
             if time.monotonic() > deadline:
-                raise TimeoutError("Browser pool exhausted: no slot available after 30s")
+                raise BrowserPoolExhaustedError("Browser pool exhausted: no slot available after 30s")
     
     async def _create_new_instance(self, **context_options) -> BrowserContext:
         """Create a new browser instance."""
         if not self._playwright:
             await self.initialize()
-        
-        browser = await getattr(self._playwright, self.browser_type).launch(
-            headless=self.headless
-        )
-        
-        context = await browser.new_context(**context_options)
+
+        try:
+            browser = await getattr(self._playwright, self.browser_type).launch(
+                headless=self.headless
+            )
+        except PlaywrightError as exc:
+            raise BrowserInitError(f"Failed to launch {self.browser_type}: {exc}") from exc
+
+        try:
+            context = await browser.new_context(**context_options)
+        except PlaywrightError as exc:
+            await browser.close()
+            raise BrowserPoolError(f"Failed to create browser context: {exc}") from exc
         
         instance = BrowserInstance(
             browser=browser,
@@ -174,11 +200,17 @@ class BrowserPool:
         for instance in to_remove:
             try:
                 await instance.context.close()
+            except PlaywrightError as exc:
+                logger.warning("Error closing browser context during cleanup: %s", exc)
+            try:
                 await instance.browser.close()
+            except PlaywrightError as exc:
+                logger.warning("Error closing browser during cleanup: %s", exc)
+            try:
                 self._instances.remove(instance)
-                logger.info(f"Removed browser instance (pool size: {len(self._instances)})")
-            except Exception as e:
-                logger.error(f"Error removing browser instance: {e}")
+                logger.info("Removed browser instance (pool size: %d)", len(self._instances))
+            except ValueError:
+                pass  # Already removed by a concurrent cleanup
     
     async def release(self, context: BrowserContext) -> None:
         """Release a context back to the pool."""

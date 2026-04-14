@@ -39,8 +39,8 @@ class GraphQLClient:
                     logger.error(f"GraphQL query failed: {response.status_code}")
                     return None
         
-        except Exception as e:
-            logger.error(f"Error executing GraphQL query: {e}")
+        except (httpx.HTTPError, httpx.RequestError, ValueError) as exc:
+            logger.error("Error executing GraphQL query against %s: %s", self.endpoint, exc)
             return None
 
 

@@ -129,9 +129,9 @@ class SitemapAnalyzer:
                         analysis.entries.append(entry)
                         analysis.total_urls += 1
         
-        except Exception as e:
-            analysis.errors.append(f"Error analyzing sitemap: {e}")
-            logger.error(f"Error analyzing sitemap {sitemap_url}: {e}", exc_info=True)
+        except (httpx.HTTPError, ET.ParseError, ValueError, KeyError) as exc:
+            analysis.errors.append(f"Error analyzing sitemap: {exc}")
+            logger.error("Error analyzing sitemap %s: %s", sitemap_url, exc, exc_info=True)
         
         return analysis
     
@@ -195,10 +195,10 @@ class SitemapAnalyzer:
                 analysis.errors.append("robots.txt not found")
             else:
                 analysis.errors.append(f"HTTP error: {e.response.status_code}")
-        except Exception as e:
-            analysis.errors.append(f"Error analyzing robots.txt: {e}")
+        except (httpx.HTTPError, ValueError, OSError) as exc:
+            analysis.errors.append(f"Error analyzing robots.txt: {exc}")
             analysis.valid = False
-            logger.error(f"Error analyzing robots.txt {robots_url}: {e}", exc_info=True)
+            logger.error("Error analyzing robots.txt %s: %s", robots_url, exc, exc_info=True)
         
         return analysis
     

@@ -75,7 +75,7 @@ class TechnologyDetector:
             try:
                 self.wappalyzer = Wappalyzer.latest()
             except Exception as e:
-                logger.warning(f"Failed to initialize Wappalyzer: {e}")
+                logger.warning("Failed to initialize Wappalyzer: %s", e)
     
     def detect(
         self,
@@ -141,7 +141,7 @@ class TechnologyDetector:
                     stack.other.append(tech_info)
         
         except Exception as e:
-            logger.error(f"Error detecting technologies: {e}")
+            logger.error("Error detecting technologies: %s", e)
         
         return stack
     

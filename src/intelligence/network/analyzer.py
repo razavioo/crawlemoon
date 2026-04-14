@@ -175,7 +175,7 @@ class RequestAnalyzer:
         if request.post_data:
             try:
                 body_params = json.loads(request.post_data)
-            except Exception:
+            except (ValueError, TypeError, KeyError):
                 pass
         
         # Common pagination parameter names
@@ -244,7 +244,7 @@ class RequestAnalyzer:
         if request.post_data:
             try:
                 body_params = json.loads(request.post_data)
-            except Exception:
+            except (ValueError, TypeError, KeyError):
                 pass
         
         # Common filter parameter patterns
@@ -289,7 +289,7 @@ class RequestAnalyzer:
                     for value in data.values():
                         if isinstance(value, str) and ("http://" in value or "https://" in value):
                             dependencies.append(value)
-            except Exception:
+            except (ValueError, TypeError, KeyError):
                 pass
         
         return dependencies

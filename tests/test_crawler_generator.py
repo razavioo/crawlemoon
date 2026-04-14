@@ -172,16 +172,24 @@ def test_crawler_definition():
 
 
 def test_from_state_machine():
-    """Test generating crawler from state machine."""
+    """Test generating crawler from a real state machine."""
+    from src.intelligence.recorder.state_machine import (
+        StateMachine, State, StateType, Transition,
+    )
     generator = CrawlerGenerator()
-    
-    # Mock state machine (placeholder)
-    sm = None
-    
+
+    sm = StateMachine()
+    s0 = State(id="s0", name="Home", url="https://example.com", type=StateType.INITIAL)
+    s1 = State(id="s1", name="Page2", url="https://example.com/p2", type=StateType.FINAL)
+    sm.states = [s0, s1]
+    sm.initial_state = s0
+    sm.transitions = [Transition(from_state="s0", to_state="s1", action="navigate")]
+
     crawler = generator.from_state_machine(sm)
-    
+
     assert crawler is not None
     assert isinstance(crawler, CrawlerDefinition)
+    assert any(s.get("action") == "navigate" for s in crawler.steps)
 
 
 

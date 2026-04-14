@@ -15,6 +15,8 @@ from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
+from ...exceptions import SessionEncryptionError, SessionNotFoundError, SessionStorageError
+
 logger = logging.getLogger(__name__)
 
 
@@ -193,9 +195,10 @@ class SessionManager:
             token = fernet.encrypt(data.encode())
             # Store as base64(salt + token)
             return base64.urlsafe_b64encode(salt + token).decode()
-        except Exception as e:
-            logger.error(f"Encryption failed: {e}")
-            return data
+        except (ValueError, TypeError, Exception) as exc:
+            # Log but do not leak the plaintext value
+            logger.error("Session encryption failed: %s", type(exc).__name__)
+            raise SessionEncryptionError(f"Failed to encrypt session data: {exc}") from exc
 
     def _decrypt(self, data: str) -> str:
         """Decrypt data, extracting the salt from the first 16 bytes."""
@@ -206,9 +209,9 @@ class SessionManager:
             salt, token = raw[:16], raw[16:]
             fernet = self._derive_fernet(salt)
             return fernet.decrypt(token).decode()
-        except Exception as e:
-            logger.error(f"Decryption failed: {e}")
-            return data
+        except (ValueError, TypeError, Exception) as exc:
+            logger.error("Session decryption failed: %s", type(exc).__name__)
+            raise SessionEncryptionError(f"Failed to decrypt session data: {exc}") from exc
     
     async def add_credential(self, credential: Credential) -> None:
         """Add a credential to the manager."""
@@ -289,8 +292,15 @@ class SessionManager:
         return await self.get_session(session_id)
     
     async def persist_to_disk(self) -> None:
-        """Persist sessions to disk with encryption."""
-        self.storage_path.mkdir(parents=True, exist_ok=True)
+        """Persist sessions and credentials to disk with encryption.
+
+        Raises:
+            SessionStorageError: If writing to disk fails.
+        """
+        try:
+            self.storage_path.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            raise SessionStorageError(f"Cannot create session storage directory: {exc}") from exc
         
         # Save credentials (encrypt sensitive fields)
         creds_path = self.storage_path / "credentials.json"
@@ -358,9 +368,9 @@ class SessionManager:
                     )
                     self._credentials[cred_id] = cred
                 
-                logger.info(f"Loaded {len(self._credentials)} credentials from disk")
-            except Exception as e:
-                logger.error(f"Error loading credentials: {e}")
+                logger.info("Loaded %d credentials from disk", len(self._credentials))
+            except (OSError, json.JSONDecodeError, KeyError, ValueError) as exc:
+                logger.error("Error loading credentials from disk: %s", exc)
         
         # Load sessions
         if sessions_path.exists():
@@ -385,9 +395,9 @@ class SessionManager:
                     )
                     self._sessions[session_id] = session
                 
-                logger.info(f"Loaded {len(self._sessions)} sessions from disk")
-            except Exception as e:
-                logger.error(f"Error loading sessions: {e}")
+                logger.info("Loaded %d sessions from disk", len(self._sessions))
+            except (OSError, json.JSONDecodeError, KeyError, ValueError) as exc:
+                logger.error("Error loading sessions from disk: %s", exc)
     
     def get_user_data_dir(self, session_id: str) -> Optional[Path]:
         """Get user data directory path for a session (browser profile persistence)."""

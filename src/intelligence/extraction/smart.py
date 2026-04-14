@@ -217,8 +217,8 @@ class SmartExtractor:
             
             self.llm_enabled = True
             
-        except Exception as e:
-            logger.warning(f"Failed to initialize LLM client: {e}")
+        except (AttributeError, TypeError, ValueError, ImportError) as e:
+            logger.warning("Failed to initialize LLM client: %s", e)
             self.llm_enabled = False
     
     def generate_selectors(
@@ -241,8 +241,8 @@ class SmartExtractor:
         try:
             # Use LLM to generate better selectors
             return self._llm_selector_generation(html, query)
-        except Exception as e:
-            logger.warning(f"LLM selector generation failed, using pattern fallback: {e}")
+        except (AttributeError, TypeError, ValueError, RuntimeError) as e:
+            logger.warning("LLM selector generation failed, using pattern fallback: %s", e)
             return self._pattern_based_selector_generation(html, query)
     
     def _llm_selector_generation(
@@ -303,8 +303,8 @@ Only respond with the JSON array, no other text."""
             
             return targets if targets else self._pattern_based_selector_generation(html, query)
             
-        except Exception as e:
-            logger.warning(f"LLM response parsing failed: {e}")
+        except (AttributeError, TypeError, ValueError, KeyError) as e:
+            logger.warning("LLM response parsing failed: %s", e)
             return self._pattern_based_selector_generation(html, query)
     
     def _pattern_based_selector_generation(
@@ -444,8 +444,8 @@ Only respond with the JSON array, no other text."""
                         match = re.search(target.selector, html)
                         results[target.description] = match.group(1) if match else None
             
-            except Exception as e:
-                logger.error(f"Error extracting with selector {target.selector}: {e}")
+            except (AttributeError, TypeError, ValueError) as e:
+                logger.error("Error extracting with selector %s: %s", target.selector, e)
                 results[target.description] = None
         
         return results

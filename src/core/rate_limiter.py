@@ -1,4 +1,4 @@
-"""Rate limiter with per-domain limits and exponential backoff."""
+"""Rate limiter with per-domain limits, exponential backoff, and Retry-After support."""
 
 import asyncio
 import logging
@@ -8,6 +8,8 @@ from typing import Dict, Optional, List
 from datetime import datetime, timedelta
 from urllib.parse import urlparse
 from collections import deque
+
+from ..exceptions import RateLimitError
 
 logger = logging.getLogger(__name__)
 
@@ -217,34 +219,78 @@ class RateLimiter:
                     logger.warning(f"Rate limit (hour) for {domain}: waiting {wait_time:.2f}s")
                     await asyncio.sleep(wait_time)
     
-    def record_response(self, url: str, status_code: int) -> None:
-        """Record a response and apply exponential backoff if needed."""
+    def record_response(
+        self,
+        url: str,
+        status_code: int,
+        headers: Optional[Dict[str, str]] = None,
+    ) -> None:
+        """Record a response and apply backoff when rate-limited.
+
+        Respects ``Retry-After`` and ``X-RateLimit-Reset`` headers when present
+        so the backoff duration is exactly what the server requested.
+
+        Args:
+            url: The request URL (used to extract the domain).
+            status_code: HTTP response status code.
+            headers: Optional response headers dict (case-insensitive lookup is
+                attempted for both ``Retry-After`` and ``X-RateLimit-Reset``).
+        """
         parsed = urlparse(url)
         domain = parsed.netloc or parsed.hostname or "unknown"
-        
-        # Apply exponential backoff on 429 (Too Many Requests) or 503 (Service Unavailable)
-        if status_code in [429, 503]:
-            retry_after = None
-            
-            # Try to get Retry-After header (would need to pass headers here)
-            # For now, use exponential backoff based on failure count
-            
-            current_backoff = self._domain_backoff.get(domain, 0)
-            now = time.time()
-            
-            if current_backoff > now:
-                # Already in backoff, increase it
-                backoff_duration = min((current_backoff - now) * 2, 300)  # Max 5 minutes
-            else:
-                # Start new backoff
-                backoff_duration = 5.0  # Start with 5 seconds
-            
-            backoff_until = now + backoff_duration
-            self._domain_backoff[domain] = backoff_until
-            logger.warning(
-                f"Rate limit hit for {domain} (status {status_code}). "
-                f"Backing off for {backoff_duration:.1f}s"
+
+        if status_code not in (429, 503):
+            return
+
+        now = time.time()
+        retry_after: Optional[float] = None
+
+        if headers:
+            # Normalise header names to lowercase for lookup
+            norm = {k.lower(): v for k, v in headers.items()}
+
+            # Retry-After: <delay-seconds>  OR  Retry-After: <HTTP-date>
+            raw = norm.get("retry-after")
+            if raw:
+                try:
+                    retry_after = float(raw)
+                except ValueError:
+                    # Could be an HTTP-date; skip parsing for now
+                    pass
+
+            # X-RateLimit-Reset: <unix-timestamp>
+            if retry_after is None:
+                reset_raw = norm.get("x-ratelimit-reset")
+                if reset_raw:
+                    try:
+                        reset_ts = float(reset_raw)
+                        retry_after = max(0.0, reset_ts - now)
+                    except ValueError:
+                        pass
+
+        if retry_after is not None:
+            backoff_duration = min(retry_after, 300)
+            logger.info(
+                "Respecting Retry-After header for %s: backing off %.1fs",
+                domain,
+                backoff_duration,
             )
+        else:
+            # Exponential backoff based on current backoff state
+            current_backoff = self._domain_backoff.get(domain, 0)
+            if current_backoff > now:
+                backoff_duration = min((current_backoff - now) * 2, 300)
+            else:
+                backoff_duration = 5.0
+
+        backoff_until = now + backoff_duration
+        self._domain_backoff[domain] = backoff_until
+        logger.warning(
+            "Rate limit hit for %s (status %d). Backing off for %.1fs",
+            domain,
+            status_code,
+            backoff_duration,
+        )
     
     def get_stats(self) -> Dict:
         """Get rate limiter statistics."""

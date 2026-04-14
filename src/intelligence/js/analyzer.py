@@ -68,8 +68,8 @@ class JSAnalyzer:
         try:
             tree = esprima.parseScript(code, {'loc': True, 'tolerant': True})
             return self._analyze_ast(tree)
-        except Exception as e:
-            logger.debug(f"AST parsing failed: {e}, falling back to regex")
+        except (SyntaxError, TypeError, ValueError) as exc:
+            logger.debug("AST parsing failed: %s, falling back to regex", exc)
             return {}
     
     def _analyze_ast(self, tree: Any) -> Dict[str, Any]:
@@ -196,8 +196,8 @@ class JSAnalyzer:
                         type=call['type'],
                         line_number=call.get('line', 0),
                     ))
-            except Exception as e:
-                logger.debug(f"AST extraction failed: {e}, using regex fallback")
+            except (SyntaxError, TypeError, ValueError, AttributeError) as exc:
+                logger.debug("AST extraction failed: %s, using regex fallback", exc)
         
         # Fallback to regex if AST didn't work or not available
         if not api_calls:
@@ -243,9 +243,9 @@ class JSAnalyzer:
             try:
                 ast_result = self._extract_from_ast(code)
                 urls.extend(ast_result.get('urls', []))
-            except Exception:
+            except (SyntaxError, TypeError, ValueError, AttributeError):
                 pass
-        
+
         # Fallback to regex
         for match in self.url_pattern.finditer(code):
             url = match.group(1)
@@ -263,7 +263,7 @@ class JSAnalyzer:
             try:
                 ast_result = self._extract_from_ast(code)
                 constants.update(ast_result.get('constants', {}))
-            except Exception:
+            except (SyntaxError, TypeError, ValueError, AttributeError):
                 pass
         
         # Fallback to regex

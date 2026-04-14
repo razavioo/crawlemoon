@@ -35,7 +35,7 @@ class WebSocketAnalyzer:
                     decoded=data,
                     format="json",
                 ))
-            except Exception:
+            except (ValueError, UnicodeDecodeError):
                 # Keep as text
                 decoded.append(DecodedWSMessage(
                     original=msg.message,

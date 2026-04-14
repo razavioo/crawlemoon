@@ -35,6 +35,11 @@ try:
 except ImportError:
     pass
 
+try:
+    from playwright.async_api import Error as PlaywrightError
+except ImportError:
+    PlaywrightError = Exception  # type: ignore[assignment,misc]
+
 logger = logging.getLogger(__name__)
 
 
@@ -81,15 +86,15 @@ class CaptchaSolver:
         if ANTICAPTCHA_AVAILABLE and anticaptcha_key:
             try:
                 self.anticaptcha_client = AnticaptchaClient(anticaptcha_key)
-            except Exception as e:
-                logger.warning(f"Failed to initialize AntiCaptcha: {e}")
-        
+            except (TypeError, ValueError, AttributeError) as e:
+                logger.warning("Failed to initialize AntiCaptcha: %s", e)
+
         self.capsolver_client = None
         if CAPSOLVER_AVAILABLE and capsolver_key:
             try:
                 self.capsolver_client = CapSolver(capsolver_key)
-            except Exception as e:
-                logger.warning(f"Failed to initialize CapSolver: {e}")
+            except (TypeError, ValueError, AttributeError) as e:
+                logger.warning("Failed to initialize CapSolver: %s", e)
     
     async def solve_recaptcha_v2(
         self,
@@ -122,15 +127,15 @@ class CaptchaSolver:
             if self.capsolver_client:
                 try:
                     return await self._solve_recaptcha_v2_capsolver(site_key, page_url)
-                except Exception as e:
-                    logger.warning(f"CapSolver failed: {e}")
-            
+                except (TypeError, ValueError, AttributeError, RuntimeError, OSError) as e:
+                    logger.warning("CapSolver failed: %s", e)
+
             # Fallback to AntiCaptcha
             if self.anticaptcha_client:
                 try:
                     return await self._solve_recaptcha_v2_anticaptcha(site_key, page_url)
-                except Exception as e:
-                    logger.warning(f"AntiCaptcha failed: {e}")
+                except (TypeError, ValueError, AttributeError, RuntimeError, OSError) as e:
+                    logger.warning("AntiCaptcha failed: %s", e)
         elif service == CaptchaService.CAPSOLVER and self.capsolver_client:
             return await self._solve_recaptcha_v2_capsolver(site_key, page_url)
         elif service == CaptchaService.ANTICAPTCHA and self.anticaptcha_client:
@@ -177,9 +182,9 @@ class CaptchaSolver:
                         iframe = await iframe_element.content_frame()
                         if iframe:
                             break
-                except Exception:
+                except (PlaywrightError, AttributeError):
                     continue
-            
+
             if not iframe:
                 logger.warning("Could not find reCAPTCHA iframe")
                 return None
@@ -218,14 +223,14 @@ class CaptchaSolver:
                         if token:
                             logger.info("Successfully solved reCAPTCHA v2 via browser automation (JS)")
                             return token
-                    except Exception:
+                    except (PlaywrightError, AttributeError):
                         pass
-                        
-            except Exception as e:
-                logger.debug(f"Browser automation failed: {e}")
-            
-        except Exception as e:
-            logger.debug(f"reCAPTCHA v2 browser automation error: {e}")
+
+            except (PlaywrightError, AttributeError) as e:
+                logger.debug("Browser automation failed: %s", e)
+
+        except (PlaywrightError, AttributeError) as e:
+            logger.debug("reCAPTCHA v2 browser automation error: %s", e)
         
         return None
     
@@ -248,10 +253,10 @@ class CaptchaSolver:
                 return job.get_solution_response()
             
             return await loop.run_in_executor(None, solve)
-        except Exception as e:
-            logger.error(f"AntiCaptcha solving failed: {e}")
+        except (TypeError, ValueError, AttributeError, RuntimeError, OSError) as e:
+            logger.error("AntiCaptcha solving failed: %s", e)
             return None
-    
+
     async def _solve_recaptcha_v2_capsolver(
         self,
         site_key: str,
@@ -272,10 +277,10 @@ class CaptchaSolver:
                 )
             )
             return result.get("gRecaptchaResponse") or result.get("token")
-        except Exception as e:
-            logger.error(f"CapSolver solving failed: {e}")
+        except (TypeError, ValueError, AttributeError, RuntimeError, OSError) as e:
+            logger.error("CapSolver solving failed: %s", e)
             return None
-    
+
     async def solve_hcaptcha(
         self,
         site_key: str,
@@ -306,8 +311,8 @@ class CaptchaSolver:
                     )
                 )
                 return result.get("gRecaptchaResponse") or result.get("token")
-            except Exception as e:
-                logger.error(f"CapSolver hCaptcha solving failed: {e}")
+            except (TypeError, ValueError, AttributeError, RuntimeError, OSError) as e:
+                logger.error("CapSolver hCaptcha solving failed: %s", e)
                 return None
         
         logger.warning("hCaptcha solving not available with current service")
@@ -343,8 +348,8 @@ class CaptchaSolver:
                     )
                 )
                 return result.get("token")
-            except Exception as e:
-                logger.error(f"CapSolver Turnstile solving failed: {e}")
+            except (TypeError, ValueError, AttributeError, RuntimeError, OSError) as e:
+                logger.error("CapSolver Turnstile solving failed: %s", e)
                 return None
         
         logger.warning("Turnstile solving not available with current service")
@@ -384,8 +389,8 @@ class CaptchaSolver:
                     return job.get_captcha_text()
                 
                 return await loop.run_in_executor(None, solve)
-            except Exception as e:
-                logger.error(f"AntiCaptcha image solving failed: {e}")
+            except (TypeError, ValueError, AttributeError, RuntimeError, OSError) as e:
+                logger.error("AntiCaptcha image solving failed: %s", e)
         
         if service == CaptchaService.ANTICAPTCHA and self.anticaptcha_client:
             try:
@@ -397,8 +402,8 @@ class CaptchaSolver:
                     return job.get_captcha_text()
                 
                 return await loop.run_in_executor(None, solve)
-            except Exception as e:
-                logger.error(f"AntiCaptcha image solving failed: {e}")
+            except (TypeError, ValueError, AttributeError, RuntimeError, OSError) as e:
+                logger.error("AntiCaptcha image solving failed: %s", e)
                 return None
         
         logger.warning("Image CAPTCHA solving not available with current service")
@@ -434,8 +439,8 @@ class CaptchaSolver:
                     # Use OCR
                     text = pytesseract.image_to_string(image, config='--psm 7 -c tessedit_char_whitelist=0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz')
                     return text.strip()
-                except Exception as e:
-                    logger.debug(f"pytesseract OCR failed: {e}")
+                except (ValueError, OSError, AttributeError, RuntimeError) as e:
+                    logger.debug("pytesseract OCR failed: %s", e)
                     return None
             
             def solve_with_easyocr():
@@ -450,8 +455,8 @@ class CaptchaSolver:
                         # Combine all detected text
                         text = ' '.join([item[1] for item in result])
                         return text.strip()
-                except Exception as e:
-                    logger.debug(f"EasyOCR failed: {e}")
+                except (ValueError, OSError, AttributeError, RuntimeError) as e:
+                    logger.debug("EasyOCR failed: %s", e)
                     return None
                 return None
             
@@ -469,8 +474,8 @@ class CaptchaSolver:
                     logger.info(f"EasyOCR solved CAPTCHA: {result}")
                     return result
             
-        except Exception as e:
-            logger.debug(f"Free OCR solving failed: {e}")
+        except (ValueError, OSError, AttributeError, RuntimeError) as e:
+            logger.debug("Free OCR solving failed: %s", e)
         
         return None
     

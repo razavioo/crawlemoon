@@ -236,13 +236,13 @@ class BotDetectionAnalyzer:
         if rate_limit:
             try:
                 info.requests_per_minute = int(rate_limit)
-            except Exception:
+            except (ValueError, TypeError):
                 pass
 
         if retry_after:
             try:
                 info.block_duration = int(retry_after)
-            except Exception:
+            except (ValueError, TypeError):
                 pass
         
         # Analyze response times for patterns
@@ -333,8 +333,8 @@ class BotDetectionAnalyzer:
             else:
                 logger.warning(f"CAPTCHA type {captcha_type.value} not yet supported for solving")
                 return None
-        except Exception as e:
-            logger.error(f"Error solving CAPTCHA: {e}")
+        except (AttributeError, TypeError, ValueError, RuntimeError) as e:
+            logger.error("Error solving CAPTCHA: %s", e)
             return None
 
 

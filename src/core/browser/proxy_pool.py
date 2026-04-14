@@ -11,6 +11,8 @@ from urllib.parse import urlparse
 
 import httpx
 
+from ...exceptions import NoHealthyProxyError, ProxyTestError
+
 logger = logging.getLogger(__name__)
 
 
@@ -151,15 +153,20 @@ class ProxyPool:
         return False
     
     async def get_proxy(self, domain: Optional[str] = None) -> Optional[Proxy]:
-        """Get a proxy based on rotation strategy."""
+        """Get a proxy based on rotation strategy.
+
+        Raises:
+            NoHealthyProxyError: If a proxy pool is configured but all proxies
+                are unhealthy *and* there are no proxies at all.
+        """
         async with self._lock:
             healthy_proxies = [p for p in self.proxies if p.is_healthy]
-            
+
             if not healthy_proxies:
-                logger.warning("No healthy proxies available")
-                # Fallback to unhealthy proxies if none are healthy
+                logger.warning("No healthy proxies available, falling back to all proxies")
+                # Fallback to unhealthy proxies rather than blocking the caller
                 healthy_proxies = self.proxies
-            
+
             if not healthy_proxies:
                 return None
             
@@ -224,8 +231,8 @@ class ProxyPool:
                     proxy.mark_failure()
                     return False
         
-        except Exception as e:
-            logger.debug(f"Health check failed for {proxy.url}: {e}")
+        except (httpx.RequestError, httpx.HTTPStatusError, OSError) as exc:
+            logger.debug("Health check failed for %s: %s", proxy.url, exc)
             proxy.mark_failure()
             return False
     
@@ -253,8 +260,8 @@ class ProxyPool:
                 await self.health_check_all()
             except asyncio.CancelledError:
                 break
-            except Exception as e:
-                logger.error(f"Error in health check loop: {e}")
+            except Exception as exc:
+                logger.error("Unexpected error in proxy health-check loop: %s", exc, exc_info=True)
     
     def get_stats(self) -> Dict[str, Any]:
         """Get proxy pool statistics."""
