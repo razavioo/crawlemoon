@@ -1,0 +1,95 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 460" role="img" aria-label="How Crawilfy works — flow from agent to web">
+  <rect width="1200" height="460" fill="#f4efe6"/>
+
+  <line x1="64" y1="56" x2="1136" y2="56" stroke="#1a1a1a" stroke-opacity="0.18" stroke-width="0.75"/>
+  <text x="64" y="44" font-family="ui-monospace, 'SF Mono', Menlo, monospace" font-size="11" fill="#1a1a1a" fill-opacity="0.55" letter-spacing="2">
+    №&#160;04 &#160;·&#160; HOW &#160;IT &#160;WORKS
+  </text>
+  <text x="1136" y="44" font-family="ui-monospace, 'SF Mono', Menlo, monospace" font-size="11" fill="#c1502e" letter-spacing="2" text-anchor="end">
+    AGENT &#160;→ &#160;CRAWILFY &#160;→ &#160;WEB
+  </text>
+
+  <text x="64" y="118" font-family="'Iowan Old Style', Palatino, Georgia, serif" font-size="40" font-weight="500" fill="#171717" letter-spacing="-1">
+    A clean line between your agent and the open web.
+  </text>
+
+  <!-- diagram -->
+  <g transform="translate(64, 178)" font-family="-apple-system, 'Helvetica Neue', Inter, sans-serif">
+
+    <!-- node 1: Agent -->
+    <g>
+      <rect x="0" y="0" width="200" height="92" rx="8" fill="none" stroke="#171717" stroke-width="1.2"/>
+      <text x="20" y="26" font-family="ui-monospace, 'SF Mono', Menlo, monospace" font-size="10" fill="#c1502e" letter-spacing="2">CLIENT</text>
+      <text x="20" y="54" font-family="'Iowan Old Style', Palatino, serif" font-size="20" fill="#171717">AI agent</text>
+      <text x="20" y="76" font-size="12" fill="#1a1a1a" fill-opacity="0.65">Claude · Cursor · Windsurf</text>
+    </g>
+
+    <!-- arrow + label "MCP" -->
+    <g transform="translate(212, 46)">
+      <line x1="0" y1="0" x2="76" y2="0" stroke="#1a1a1a" stroke-opacity="0.55" stroke-width="1.2" stroke-dasharray="3 4"/>
+      <polygon points="76,-4 84,0 76,4" fill="#1a1a1a" fill-opacity="0.55"/>
+      <text x="42" y="-10" font-family="ui-monospace, 'SF Mono', Menlo, monospace" font-size="10" fill="#1a1a1a" fill-opacity="0.6" text-anchor="middle" letter-spacing="2">MCP</text>
+    </g>
+
+    <!-- node 2: Crawilfy -->
+    <g transform="translate(304, 0)">
+      <rect x="0" y="0" width="320" height="92" rx="8" fill="#171717"/>
+      <text x="20" y="26" font-family="ui-monospace, 'SF Mono', Menlo, monospace" font-size="10" fill="#c1502e" letter-spacing="2">SERVER</text>
+      <text x="20" y="54" font-family="'Iowan Old Style', Palatino, serif" font-size="20" fill="#f4efe6">Crawilfy</text>
+      <text x="20" y="76" font-size="12" fill="#f4efe6" fill-opacity="0.7">55 tools · validation · auth · cache · rate-limit</text>
+    </g>
+
+    <!-- arrow -->
+    <g transform="translate(636, 46)">
+      <line x1="0" y1="0" x2="76" y2="0" stroke="#1a1a1a" stroke-opacity="0.55" stroke-width="1.2" stroke-dasharray="3 4"/>
+      <polygon points="76,-4 84,0 76,4" fill="#1a1a1a" fill-opacity="0.55"/>
+    </g>
+
+    <!-- node 3: stack -->
+    <g transform="translate(728, 0)">
+      <rect x="0" y="0" width="92" height="92" rx="8" fill="none" stroke="#171717" stroke-width="1.2"/>
+      <text x="46" y="34" font-family="ui-monospace, 'SF Mono', Menlo, monospace" font-size="10" fill="#1a1a1a" fill-opacity="0.6" text-anchor="middle" letter-spacing="1">BROWSER</text>
+      <text x="46" y="50" font-family="ui-monospace, 'SF Mono', Menlo, monospace" font-size="10" fill="#1a1a1a" fill-opacity="0.6" text-anchor="middle" letter-spacing="1">HTTP</text>
+      <text x="46" y="66" font-family="ui-monospace, 'SF Mono', Menlo, monospace" font-size="10" fill="#1a1a1a" fill-opacity="0.6" text-anchor="middle" letter-spacing="1">PROXIES</text>
+    </g>
+
+    <!-- arrow -->
+    <g transform="translate(828, 46)">
+      <line x1="0" y1="0" x2="76" y2="0" stroke="#c1502e" stroke-width="1.5" stroke-dasharray="3 4"/>
+      <polygon points="76,-4 84,0 76,4" fill="#c1502e"/>
+    </g>
+
+    <!-- node 4: target web -->
+    <g transform="translate(920, 0)">
+      <circle cx="46" cy="46" r="46" fill="none" stroke="#c1502e" stroke-width="1.5"/>
+      <text x="46" y="50" font-family="'Iowan Old Style', Palatino, serif" font-size="20" fill="#c1502e" text-anchor="middle">web</text>
+    </g>
+
+    <!-- captions under nodes (request → response) -->
+    <text x="100" y="120" font-family="ui-monospace, 'SF Mono', Menlo, monospace" font-size="10" fill="#1a1a1a" fill-opacity="0.5" text-anchor="middle" letter-spacing="1">
+      "scrape this site"
+    </text>
+    <text x="464" y="120" font-family="ui-monospace, 'SF Mono', Menlo, monospace" font-size="10" fill="#1a1a1a" fill-opacity="0.5" text-anchor="middle" letter-spacing="1">
+      tool dispatch · safety checks
+    </text>
+    <text x="966" y="120" font-family="ui-monospace, 'SF Mono', Menlo, monospace" font-size="10" fill="#1a1a1a" fill-opacity="0.5" text-anchor="middle" letter-spacing="1">
+      target site
+    </text>
+
+    <!-- the return path -->
+    <g transform="translate(0, 168)">
+      <text x="0" y="0" font-family="ui-monospace, 'SF Mono', Menlo, monospace" font-size="10" fill="#c1502e" letter-spacing="2">ON THE WAY BACK</text>
+      <text x="0" y="22" font-family="'Iowan Old Style', Palatino, serif" font-size="18" fill="#171717" font-style="italic">
+        Network is captured, JS is read, schemas are introspected.
+      </text>
+      <text x="0" y="44" font-family="'Iowan Old Style', Palatino, serif" font-size="18" fill="#171717" font-style="italic">
+        The agent gets clean structured data — and, on request, a runnable crawler.
+      </text>
+    </g>
+  </g>
+
+  <line x1="64" y1="424" x2="1136" y2="424" stroke="#1a1a1a" stroke-opacity="0.18" stroke-width="0.75"/>
+  <text x="64" y="446" font-family="ui-monospace, 'SF Mono', Menlo, monospace" font-size="11" fill="#1a1a1a" fill-opacity="0.55" letter-spacing="2">
+    No proprietary API. No per-request fee. MIT-licensed end-to-end.
+  </text>
+</svg>

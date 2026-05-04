@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 360" role="img" aria-label="Install Crawilfy three ways">
+  <rect width="1200" height="360" fill="#f4efe6"/>
+
+  <line x1="64" y1="56" x2="1136" y2="56" stroke="#1a1a1a" stroke-opacity="0.18" stroke-width="0.75"/>
+  <text x="64" y="44" font-family="ui-monospace, 'SF Mono', Menlo, monospace" font-size="11" fill="#1a1a1a" fill-opacity="0.55" letter-spacing="2">
+    №&#160;03 &#160;·&#160; INSTALL
+  </text>
+  <text x="1136" y="44" font-family="ui-monospace, 'SF Mono', Menlo, monospace" font-size="11" fill="#c1502e" letter-spacing="2" text-anchor="end">
+    SIXTY &#160;SECONDS
+  </text>
+
+  <text x="64" y="118" font-family="'Iowan Old Style', 'Palatino', Georgia, serif" font-size="40" font-weight="500" fill="#171717" letter-spacing="-1">
+    Three ways. One server.
+  </text>
+
+  <!-- columns -->
+  <g font-family="-apple-system, 'Helvetica Neue', Inter, sans-serif">
+
+    <!-- col 1: uvx -->
+    <g transform="translate(64, 178)">
+      <text x="0" y="0" font-family="ui-monospace, 'SF Mono', Menlo, monospace" font-size="10" fill="#c1502e" letter-spacing="2">RECOMMENDED</text>
+      <text x="0" y="34" font-family="'Iowan Old Style', Palatino, serif" font-size="26" font-weight="500" fill="#171717">uvx</text>
+      <text x="0" y="58" font-size="13" fill="#1a1a1a" fill-opacity="0.65">No install. Runs straight from PyPI.</text>
+      <g transform="translate(0, 80)">
+        <rect width="320" height="44" rx="6" fill="#171717"/>
+        <text x="14" y="28" font-family="ui-monospace, 'SF Mono', Menlo, monospace" font-size="13" fill="#f4efe6">$ uvx crawilfy-mcp-server</text>
+      </g>
+    </g>
+
+    <line x1="416" y1="178" x2="416" y2="302" stroke="#1a1a1a" stroke-opacity="0.15" stroke-width="0.75"/>
+
+    <!-- col 2: pipx -->
+    <g transform="translate(448, 178)">
+      <text x="0" y="0" font-family="ui-monospace, 'SF Mono', Menlo, monospace" font-size="10" fill="#1a1a1a" fill-opacity="0.45" letter-spacing="2">ISOLATED</text>
+      <text x="0" y="34" font-family="'Iowan Old Style', Palatino, serif" font-size="26" font-weight="500" fill="#171717">pipx</text>
+      <text x="0" y="58" font-size="13" fill="#1a1a1a" fill-opacity="0.65">Sandboxed in its own venv.</text>
+      <g transform="translate(0, 80)">
+        <rect width="320" height="44" rx="6" fill="#171717"/>
+        <text x="14" y="28" font-family="ui-monospace, 'SF Mono', Menlo, monospace" font-size="13" fill="#f4efe6">$ pipx run crawilfy-mcp-server</text>
+      </g>
+    </g>
+
+    <line x1="800" y1="178" x2="800" y2="302" stroke="#1a1a1a" stroke-opacity="0.15" stroke-width="0.75"/>
+
+    <!-- col 3: pip -->
+    <g transform="translate(832, 178)">
+      <text x="0" y="0" font-family="ui-monospace, 'SF Mono', Menlo, monospace" font-size="10" fill="#1a1a1a" fill-opacity="0.45" letter-spacing="2">CLASSIC</text>
+      <text x="0" y="34" font-family="'Iowan Old Style', Palatino, serif" font-size="26" font-weight="500" fill="#171717">pip</text>
+      <text x="0" y="58" font-size="13" fill="#1a1a1a" fill-opacity="0.65">For dev or CI environments.</text>
+      <g transform="translate(0, 80)">
+        <rect width="272" height="44" rx="6" fill="#171717"/>
+        <text x="14" y="28" font-family="ui-monospace, 'SF Mono', Menlo, monospace" font-size="13" fill="#f4efe6">$ pip install crawilfy-mcp-server</text>
+      </g>
+    </g>
+  </g>
+
+  <line x1="64" y1="324" x2="1136" y2="324" stroke="#1a1a1a" stroke-opacity="0.18" stroke-width="0.75"/>
+  <text x="64" y="346" font-family="ui-monospace, 'SF Mono', Menlo, monospace" font-size="11" fill="#1a1a1a" fill-opacity="0.55" letter-spacing="2">
+    Then point Claude Code, Cursor, or Windsurf at the server. That's it.
+  </text>
+</svg>

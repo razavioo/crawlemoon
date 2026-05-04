@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="540" height="28" viewBox="0 0 540 28" role="img" aria-label="Python 3.10+, PyPI 1.1.0, License MIT, MCP-native, Code style black">
+  <style>
+    .t { font: 600 11px -apple-system, BlinkMacSystemFont, 'Segoe UI', ui-monospace, monospace; fill: #fff; letter-spacing: 0.2px; }
+  </style>
+
+  <!-- python | 3.10+ -->
+  <g>
+    <rect x="0"  y="0" width="60"  height="28" rx="4" fill="#2d2d2d"/>
+    <rect x="60" y="0" width="56"  height="28" rx="4" fill="#3776ab"/>
+    <rect x="60" y="0" width="6"   height="28"        fill="#3776ab"/>
+    <text class="t" x="30"  y="18" text-anchor="middle">python</text>
+    <text class="t" x="88"  y="18" text-anchor="middle">3.10+</text>
+  </g>
+
+  <!-- pypi | 1.1.0 -->
+  <g transform="translate(124, 0)">
+    <rect x="0"  y="0" width="44"  height="28" rx="4" fill="#2d2d2d"/>
+    <rect x="44" y="0" width="56"  height="28" rx="4" fill="#0073b7"/>
+    <rect x="44" y="0" width="6"   height="28"        fill="#0073b7"/>
+    <text class="t" x="22"  y="18" text-anchor="middle">pypi</text>
+    <text class="t" x="72"  y="18" text-anchor="middle">1.1.0</text>
+  </g>
+
+  <!-- license | MIT -->
+  <g transform="translate(232, 0)">
+    <rect x="0"  y="0" width="56"  height="28" rx="4" fill="#2d2d2d"/>
+    <rect x="56" y="0" width="44"  height="28" rx="4" fill="#2a8a3e"/>
+    <rect x="56" y="0" width="6"   height="28"        fill="#2a8a3e"/>
+    <text class="t" x="28"  y="18" text-anchor="middle">license</text>
+    <text class="t" x="78"  y="18" text-anchor="middle">MIT</text>
+  </g>
+
+  <!-- mcp | native -->
+  <g transform="translate(340, 0)">
+    <rect x="0"  y="0" width="40"  height="28" rx="4" fill="#2d2d2d"/>
+    <rect x="40" y="0" width="60"  height="28" rx="4" fill="#c1502e"/>
+    <rect x="40" y="0" width="6"   height="28"        fill="#c1502e"/>
+    <text class="t" x="20"  y="18" text-anchor="middle">mcp</text>
+    <text class="t" x="70"  y="18" text-anchor="middle">native</text>
+  </g>
+
+  <!-- style | black -->
+  <g transform="translate(448, 0)">
+    <rect x="0"  y="0" width="44"  height="28" rx="4" fill="#2d2d2d"/>
+    <rect x="44" y="0" width="48"  height="28" rx="4" fill="#000000"/>
+    <rect x="44" y="0" width="6"   height="28"        fill="#000000"/>
+    <text class="t" x="22"  y="18" text-anchor="middle">style</text>
+    <text class="t" x="68"  y="18" text-anchor="middle">black</text>
+  </g>
+</svg>

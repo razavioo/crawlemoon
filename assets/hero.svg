@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 560" role="img" aria-label="Crawilfy — free, AI-native web crawling">
+  <defs>
+    <pattern id="dots" width="14" height="14" patternUnits="userSpaceOnUse">
+      <circle cx="1" cy="1" r="0.6" fill="#1a1a1a" fill-opacity="0.06"/>
+    </pattern>
+  </defs>
+
+  <rect width="1200" height="560" fill="#f4efe6"/>
+  <rect width="1200" height="560" fill="url(#dots)"/>
+
+  <line x1="64" y1="64" x2="1136" y2="64" stroke="#1a1a1a" stroke-opacity="0.18" stroke-width="0.75"/>
+
+  <text x="64" y="50" font-family="ui-monospace, 'SF Mono', Menlo, monospace" font-size="12" fill="#1a1a1a" fill-opacity="0.55" letter-spacing="2.4">
+    №&#160;01 &#160;·&#160; v1.1.0 &#160;·&#160; MIT &#160;·&#160; PYPI / GITHUB
+  </text>
+  <text x="1136" y="50" font-family="ui-monospace, 'SF Mono', Menlo, monospace" font-size="12" fill="#c1502e" letter-spacing="2.4" text-anchor="end">
+    AGENT-NATIVE &#160;CRAWLING
+  </text>
+
+  <!-- left: typography -->
+  <g font-family="'Iowan Old Style', Palatino, Georgia, serif" fill="#171717">
+    <text x="64" y="220" font-size="172" font-weight="500" letter-spacing="-5">Crawilfy</text>
+    <text x="64" y="296" font-size="34" font-weight="400" font-style="italic" fill="#1a1a1a" fill-opacity="0.78">
+      The hard parts of the web,
+    </text>
+    <text x="64" y="340" font-size="34" font-weight="400" font-style="italic" fill="#1a1a1a" fill-opacity="0.78">
+      handed to your agent.
+    </text>
+  </g>
+
+  <text x="64" y="450" font-family="-apple-system, 'Helvetica Neue', Inter, sans-serif" font-size="17" font-weight="500" fill="#1a1a1a" fill-opacity="0.7" letter-spacing="0.3">
+    55 MCP tools &#160;·&#160; stealth &#160;·&#160; API discovery &#160;·&#160; record → crawler &#160;·&#160; smart extraction
+  </text>
+  <text x="64" y="486" font-family="ui-monospace, 'SF Mono', Menlo, monospace" font-size="16" fill="#c1502e">
+    $ uvx crawilfy-mcp-server
+  </text>
+
+  <!-- right: editorial diagram, scaled up -->
+  <g transform="translate(740, 130)" stroke-linecap="round">
+    <text x="0" y="-22" font-family="ui-monospace, 'SF Mono', Menlo, monospace" font-size="11" fill="#1a1a1a" fill-opacity="0.5" letter-spacing="2.2">
+      FROM &#160;URL &#160;TO &#160;STRUCTURED &#160;DATA
+    </text>
+
+    <line x1="0"   y1="56"  x2="0"   y2="280" stroke="#1a1a1a" stroke-opacity="0.85" stroke-width="2"/>
+    <line x1="80"  y1="28"  x2="80"  y2="308" stroke="#1a1a1a" stroke-opacity="0.85" stroke-width="2"/>
+    <line x1="160" y1="84"  x2="160" y2="252" stroke="#1a1a1a" stroke-opacity="0.85" stroke-width="2"/>
+    <line x1="240" y1="0"   x2="240" y2="336" stroke="#1a1a1a" stroke-opacity="0.85" stroke-width="2"/>
+    <line x1="320" y1="70"  x2="320" y2="294" stroke="#1a1a1a" stroke-opacity="0.85" stroke-width="2"/>
+    <line x1="400" y1="42"  x2="400" y2="322" stroke="#1a1a1a" stroke-opacity="0.85" stroke-width="2"/>
+
+    <g font-family="ui-monospace, 'SF Mono', Menlo, monospace" font-size="10" fill="#1a1a1a" fill-opacity="0.4" letter-spacing="1.2">
+      <text x="0"   y="356">WAF</text>
+      <text x="80"  y="356">TLS-FP</text>
+      <text x="160" y="356">JS</text>
+      <text x="240" y="356">CAPTCHA</text>
+      <text x="320" y="356">RATE</text>
+      <text x="400" y="356">CDN</text>
+    </g>
+
+    <path d="M -52 182
+             C 14 182, 40 124, 80 182
+             C 120 240, 146 138, 160 182
+             C 188 226, 220 110, 240 182
+             C 280 254, 306 124, 320 182
+             C 360 244, 386 110, 400 182
+             C 440 212, 480 182, 540 182"
+          fill="none" stroke="#c1502e" stroke-width="3"/>
+
+    <circle cx="540" cy="182" r="11" fill="#c1502e"/>
+    <circle cx="540" cy="182" r="20" fill="none" stroke="#c1502e" stroke-opacity="0.35" stroke-width="1.2"/>
+
+    <circle cx="-52" cy="182" r="4" fill="#1a1a1a"/>
+    <text x="-52" y="166" font-family="ui-monospace, 'SF Mono', Menlo, monospace" font-size="10" fill="#1a1a1a" fill-opacity="0.55" text-anchor="middle">URL</text>
+    <text x="540" y="166" font-family="ui-monospace, 'SF Mono', Menlo, monospace" font-size="11" fill="#c1502e" text-anchor="middle">DATA</text>
+  </g>
+
+  <line x1="64" y1="528" x2="1136" y2="528" stroke="#1a1a1a" stroke-opacity="0.18" stroke-width="0.75"/>
+</svg>
