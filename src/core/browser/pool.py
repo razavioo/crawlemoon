@@ -43,6 +43,18 @@ class BrowserInstance:
         """Check if browser instance has exceeded usage limit."""
         return self.usage_count >= self.max_usage
 
+    def is_alive(self) -> bool:
+        """Best-effort check that the underlying browser is still connected.
+
+        ``Browser.is_connected`` returns False once the process has crashed or
+        been closed externally. The context check guards against silently
+        reusing a context whose browser has died.
+        """
+        try:
+            return bool(self.browser.is_connected())
+        except Exception:
+            return False
+
 
 class BrowserPool:
     """Manages a pool of browser instances with automatic cleanup."""
@@ -132,7 +144,11 @@ class BrowserPool:
             
             # Try to reuse existing instance
             for instance in self._instances:
-                if not instance.is_expired() and not instance.is_overused():
+                if (
+                    not instance.is_expired()
+                    and not instance.is_overused()
+                    and instance.is_alive()
+                ):
                     instance.last_used = datetime.now()
                     instance.usage_count += 1
                     logger.debug(f"Reusing browser instance (usage: {instance.usage_count})")
@@ -190,11 +206,15 @@ class BrowserPool:
         return context
     
     async def _cleanup(self) -> None:
-        """Remove expired or overused instances."""
+        """Remove expired, overused, or dead instances."""
         to_remove = []
-        
+
         for instance in self._instances:
-            if instance.is_expired() or instance.is_overused():
+            if (
+                instance.is_expired()
+                or instance.is_overused()
+                or not instance.is_alive()
+            ):
                 to_remove.append(instance)
         
         for instance in to_remove:
@@ -223,9 +243,12 @@ class BrowserPool:
         stats = {
             "size": len(self._instances),
             "max_size": self.max_size,
+            "alive": sum(1 for inst in self._instances if inst.is_alive()),
             "instances": [
                 {
                     "usage_count": inst.usage_count,
+                    "alive": inst.is_alive(),
+                    "expired": inst.is_expired(self.max_age_minutes),
                     "age_minutes": (datetime.now() - inst.created_at).total_seconds() / 60,
                     "last_used_minutes": (datetime.now() - inst.last_used).total_seconds() / 60,
                 }

@@ -8,6 +8,7 @@ The Redis backend is optional; if ``redis`` is not installed the manager
 falls back silently to the in-memory backend.
 """
 
+import asyncio
 import hashlib
 import json
 import logging
@@ -137,6 +138,42 @@ class CacheManager:
         self._page_cache: Dict[str, CacheEntry] = {}
         self._response_cache: Dict[str, CacheEntry] = {}
         self._state_cache: Dict[str, CacheEntry] = {}
+
+        # Background sweeper for expired in-memory entries
+        self._sweep_task: Optional[asyncio.Task] = None
+        self._sweep_interval_seconds: float = 60.0
+
+    async def start_sweeper(self, interval_seconds: float = 60.0) -> None:
+        """Start a periodic task that purges expired in-memory entries.
+
+        Idempotent: calling twice is a no-op. Safe to call from any running event loop.
+        """
+        if self._sweep_task and not self._sweep_task.done():
+            return
+        self._sweep_interval_seconds = interval_seconds
+
+        async def _loop() -> None:
+            try:
+                while True:
+                    await asyncio.sleep(self._sweep_interval_seconds)
+                    try:
+                        self.evict_expired()
+                    except Exception as exc:
+                        logger.warning("Cache sweep failed: %s", exc)
+            except asyncio.CancelledError:
+                pass
+
+        self._sweep_task = asyncio.create_task(_loop(), name="cache-sweeper")
+
+    async def stop_sweeper(self) -> None:
+        """Cancel the background sweeper, if any."""
+        if self._sweep_task:
+            self._sweep_task.cancel()
+            try:
+                await self._sweep_task
+            except (asyncio.CancelledError, Exception):
+                pass
+            self._sweep_task = None
 
     # ------------------------------------------------------------------
     # Internal helpers

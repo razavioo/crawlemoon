@@ -230,6 +230,30 @@ Customize behavior with environment variables:
 | `CRAWILFY_NAV_TIMEOUT` | Page load timeout (seconds) | `30.0` |
 | `CRAWILFY_OP_TIMEOUT` | Operation timeout (seconds) | `60.0` |
 | `CRAWILFY_POOL_SIZE` | Max browser instances | `5` |
+| `CRAWILFY_API_KEY` | If set, every tool call must include `_api_key` matching this value | _unset_ |
+| `CRAWILFY_ALLOW_DANGEROUS_JS` | Required to enable `execute_js` / `execute_cdp` / `deobfuscate_js` | `false` |
+| `CRAWILFY_JS_MAX_LENGTH` | Maximum length of a JS payload | `50000` |
+| `CRAWILFY_JS_EXEC_TIMEOUT` | Per-script timeout for `execute_js` (seconds) | `10.0` |
+
+---
+
+## 🔐 Security Notes
+
+The following tools are **disabled by default** because they execute arbitrary code in a real
+browser and can be used for code execution against the host that runs the MCP server:
+
+- `execute_js` — runs an arbitrary script in a page's JavaScript context.
+- `execute_cdp` — sends arbitrary Chrome DevTools Protocol commands (incl. `Runtime.evaluate`).
+- `deobfuscate_js` — operates on untrusted JS source as input.
+
+Enable them only on trusted networks by setting `CRAWILFY_ALLOW_DANGEROUS_JS=true`. Even then:
+
+- payloads are length-capped (`CRAWILFY_JS_MAX_LENGTH`) and time-bounded (`CRAWILFY_JS_EXEC_TIMEOUT`),
+- a denylist rejects `eval`, `new Function`, dynamic `import()`, `document.write`, `importScripts`,
+  and `WebAssembly.{compile,instantiate}` to raise the bar against drive-by misuse,
+- you should set `CRAWILFY_API_KEY` so MCP clients must present a matching `_api_key` field.
+
+These are mitigations, not a sandbox: do not expose this server to untrusted clients.
 
 ---
 

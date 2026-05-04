@@ -24,8 +24,12 @@ from ..intelligence.network.api_discovery import APIDiscoveryEngine
 from ..intelligence.network.analyzer import RequestAnalyzer
 try:
     from ..intelligence.network.sitemap import SitemapAnalyzer
-except ImportError:
+except ImportError as _sitemap_import_error:
     SitemapAnalyzer = None
+    logging.getLogger(__name__).warning(
+        "SitemapAnalyzer unavailable; analyze_sitemap will be disabled: %s",
+        _sitemap_import_error,
+    )
 from ..intelligence.js.analyzer import JSAnalyzer
 from ..intelligence.js.deobfuscator import JSDeobfuscator
 from ..intelligence.recorder.session import SessionRecorder, SessionRecording, Event, EventType, StateSnapshot
@@ -36,7 +40,7 @@ from ..intelligence.extraction.content import get_content_extractor
 from ..intelligence.extraction.smart import get_smart_extractor
 from ..intelligence.generator.crawler_gen import CrawlerGenerator
 from .config import MCPServerConfig
-from .utils import validate_url, validate_arguments, with_timeout, with_retry
+from .utils import validate_url, validate_arguments, with_timeout, with_retry, validate_js_payload
 from .schemas import PYDANTIC_AVAILABLE
 from ..exceptions import (
     RecordingNotFoundError,
@@ -1210,8 +1214,21 @@ async def get_tool_schema_map() -> Dict[str, Any]:
 
 @server.call_tool()
 async def call_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
-    """Handle tool calls with comprehensive error handling."""
+    """Handle tool calls with comprehensive error handling.
+
+    Auth: when ``CRAWILFY_API_KEY`` is set in the environment, every call must
+    carry a matching ``_api_key`` argument. Useful when the server is exposed
+    over a non-stdio transport.
+    """
     try:
+        if config.api_key:
+            provided = arguments.pop("_api_key", None) if isinstance(arguments, dict) else None
+            if provided != config.api_key:
+                return [TextContent(
+                    type="text",
+                    text=json.dumps({"error": "Unauthorized: missing or invalid _api_key"}),
+                )]
+
         # Get tool schema for validation (cached after first call)
         tool_schema = (await get_tool_schema_map()).get(name)
         
@@ -1871,13 +1888,21 @@ async def handle_detect_protection(arguments: Dict[str, Any]) -> Dict[str, Any]:
 
 
 async def handle_deobfuscate_js(arguments: Dict[str, Any]) -> Dict[str, Any]:
-    """Handle deobfuscate_js tool."""
+    """Handle deobfuscate_js tool.
+
+    Static analysis only — does not execute the payload — but still enforces
+    the length cap so the deobfuscator can't be DoS'd by gigantic input.
+    """
     code = arguments["code"]
-    
+
     if not code or not isinstance(code, str):
         return {
             "error": "Invalid code: must be a non-empty string",
         }
+    if len(code) > config.js_max_length:
+        raise ValidationError(
+            f"'code' length {len(code)} exceeds limit {config.js_max_length}"
+        )
     
     try:
         # Detect obfuscation type
@@ -2751,27 +2776,45 @@ async def handle_execute_graphql(arguments: Dict[str, Any]) -> Dict[str, Any]:
 
 @with_retry(max_retries=config.max_retries, delay=config.retry_delay)
 async def handle_execute_js(arguments: Dict[str, Any]) -> Dict[str, Any]:
-    """Handle execute_js tool."""
+    """Handle execute_js tool.
+
+    Security: refuses to run unless ``CRAWILFY_ALLOW_DANGEROUS_JS=true``.
+    Enforces a length cap and per-script timeout (see :class:`MCPServerConfig`).
+    """
     url = arguments["url"]
     script = arguments["script"]
     wait_for = arguments.get("wait_for")
-    
+
+    validate_js_payload(
+        script,
+        field="script",
+        max_length=config.js_max_length,
+        allow_dangerous=config.allow_dangerous_js,
+    )
+
     await rate_limiter.wait_if_needed(url)
-    
+
     async with browser_context_manager(url=url) as page:
         try:
             response = await navigate_to_url(page, url)
-            
+
             if wait_for and wait_for not in ["load", "networkidle"]:
                 await page.wait_for_selector(wait_for, timeout=10000)
-            
-            result = await page.evaluate(script)
-            
+
+            result = await asyncio.wait_for(
+                page.evaluate(script), timeout=config.js_exec_timeout
+            )
+
             return {
                 "url": url,
                 "result": result,
                 "timestamp": datetime.now().isoformat(),
             }
+        except asyncio.TimeoutError:
+            logger.error("execute_js timed out after %.1fs on %s", config.js_exec_timeout, url)
+            raise TimeoutError(
+                f"execute_js exceeded {config.js_exec_timeout}s timeout"
+            )
         except Exception as e:
             logger.error(f"Error executing JS on {url}: {e}", exc_info=True)
             raise
@@ -3241,11 +3284,22 @@ async def handle_extract_tables(arguments: Dict[str, Any]) -> Dict[str, Any]:
 
 @with_retry(max_retries=config.max_retries, delay=config.retry_delay)
 async def handle_execute_cdp(arguments: Dict[str, Any]) -> Dict[str, Any]:
-    """Handle execute_cdp tool."""
+    """Handle execute_cdp tool.
+
+    Security: refuses to run unless ``CRAWILFY_ALLOW_DANGEROUS_JS=true`` because
+    CDP exposes Runtime.evaluate, Page.addScriptToEvaluateOnNewDocument, etc.
+    """
     url = arguments["url"]
     method = arguments["method"]
     params = arguments.get("params", {})
-    
+
+    if not config.allow_dangerous_js:
+        raise ValidationError(
+            "execute_cdp is disabled. Set CRAWILFY_ALLOW_DANGEROUS_JS=true to enable."
+        )
+    if not isinstance(method, str) or not method:
+        raise ValidationError("'method' must be a non-empty CDP method name")
+
     await rate_limiter.wait_if_needed(url)
     
     context = None
@@ -3905,7 +3959,11 @@ async def handle_wait_and_extract(arguments: Dict[str, Any]) -> Dict[str, Any]:
 async def main():
     """Main entry point for MCP server."""
     await init_browser_pool()
-    
+    try:
+        await cache_manager.start_sweeper(interval_seconds=60.0)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Could not start cache sweeper: %s", exc)
+
     from mcp.server.stdio import stdio_server
     
     try:

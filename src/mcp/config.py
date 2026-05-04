@@ -85,6 +85,15 @@ class MCPServerConfig:
     llm_base_url: Optional[str] = None
     llm_model: str = "gpt-4o-mini"  # Default model, can be changed per provider
     llm_provider: Optional[str] = None  # Shortcut for common providers
+
+    # Security: dangerous tool gating
+    # When set, MCP clients must present this key (env CRAWILFY_API_KEY) to invoke tools.
+    api_key: Optional[str] = None
+    # Allow execute_js / execute_cdp / deobfuscate_js. Off by default; opt in explicitly.
+    allow_dangerous_js: bool = False
+    # Per-script ceilings for execute_js / execute_cdp.
+    js_max_length: int = 50_000
+    js_exec_timeout: float = 10.0
     
     @classmethod
     def from_env(cls) -> "MCPServerConfig":
@@ -135,6 +144,10 @@ class MCPServerConfig:
             llm_base_url=llm_base_url,
             llm_model=llm_model,
             llm_provider=llm_provider or None,
+            api_key=os.getenv("CRAWILFY_API_KEY") or None,
+            allow_dangerous_js=os.getenv("CRAWILFY_ALLOW_DANGEROUS_JS", "false").lower() == "true",
+            js_max_length=int(os.getenv("CRAWILFY_JS_MAX_LENGTH", "50000")),
+            js_exec_timeout=float(os.getenv("CRAWILFY_JS_EXEC_TIMEOUT", "10.0")),
         )
 
 

@@ -225,6 +225,55 @@ def with_retry(
 
 
 # ---------------------------------------------------------------------------
+# JS payload validation (execute_js / execute_cdp / deobfuscate_js)
+# ---------------------------------------------------------------------------
+
+# Patterns disallowed in scripts handed to a real browser. The intent is not
+# perfect sandboxing (impossible without a JS parser) but raising the bar above
+# "anyone-with-MCP-access can pivot to RCE-shaped behavior".
+_JS_DENYLIST = (
+    re.compile(r"\beval\s*\("),
+    re.compile(r"\bnew\s+Function\b"),
+    re.compile(r"\bdocument\.write\b"),
+    re.compile(r"\bimportScripts\s*\("),
+    # Dynamic import() — distinct from static `import x from ...` parsing
+    re.compile(r"(?<![A-Za-z0-9_$])import\s*\("),
+    re.compile(r"\bWebAssembly\.(?:compile|instantiate)\b"),
+)
+
+
+def validate_js_payload(
+    code: str,
+    *,
+    field: str = "script",
+    max_length: int = 50_000,
+    allow_dangerous: bool = False,
+) -> None:
+    """Validate a JavaScript payload before sending it to a browser context.
+
+    Raises :class:`ValidationError` on failure. When *allow_dangerous* is
+    ``False``, this is a hard refusal regardless of payload content — callers
+    must explicitly opt in (typically via ``CRAWILFY_ALLOW_DANGEROUS_JS``).
+    """
+    if not isinstance(code, str) or not code.strip():
+        raise ValidationError(f"'{field}' must be a non-empty string")
+    if len(code) > max_length:
+        raise ValidationError(
+            f"'{field}' length {len(code)} exceeds limit {max_length}"
+        )
+    if not allow_dangerous:
+        raise ValidationError(
+            "JS execution is disabled. Set CRAWILFY_ALLOW_DANGEROUS_JS=true to "
+            "enable execute_js / execute_cdp / deobfuscate_js."
+        )
+    for pattern in _JS_DENYLIST:
+        if pattern.search(code):
+            raise ValidationError(
+                f"'{field}' contains disallowed construct: {pattern.pattern}"
+            )
+
+
+# ---------------------------------------------------------------------------
 # Misc helpers
 # ---------------------------------------------------------------------------
 

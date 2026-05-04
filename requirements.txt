@@ -1,10 +1,13 @@
+# Generated from pyproject.toml. Source of truth is [project.dependencies].
+# Optional groups (captcha, ocr, dev) live under [project.optional-dependencies].
 playwright>=1.40.0
 mcp>=1.0.0
 pydantic>=2.0.0
+pydantic-settings>=2.0.0
 aiohttp>=3.9.0
 httpx>=0.25.0
+websockets>=12.0
 pyyaml>=6.0
-pydantic-settings>=2.0.0
 python-json-logger>=2.0.0
 tenacity>=8.2.0
 cachetools>=5.3.0
@@ -13,37 +16,15 @@ esprima>=4.0.0
 beautifulsoup4>=4.12.0
 lxml>=5.0.0
 cryptography>=41.0.0
-websockets>=12.0
-
-# Phase 1: Advanced Anti-Detection & Stealth
 curl-cffi>=0.6.0
 fake-useragent>=1.4.0
-
-# Phase 2: Content Intelligence
 trafilatura>=1.6.0
 selectolax>=0.3.0
 markdownify>=0.11.0
-
-# Phase 3: CAPTCHA Solving
-python-anticaptcha>=1.0.0  # Optional: Paid service
-capsolver>=1.0.0  # Optional: Paid service
-
-# Free CAPTCHA solving (optional)
-pytesseract>=0.3.10  # Optional: Free OCR for image CAPTCHAs
-Pillow>=10.0.0  # Optional: Image processing for OCR
-# easyocr>=1.7.0  # Optional: Alternative OCR (uncomment if needed, requires torch)
-
-# Phase 4: Smart Extraction & AI
-instructor>=0.4.0
+instructor>=1.0.0
 openai>=1.0.0
-
-# Phase 5: Technology Detection
 python-Wappalyzer>=0.3.0
-
-# Additional utilities
 ftfy>=6.1.0
 dateparser>=1.2.0
 url-normalize>=1.4.0
 tldextract>=5.0.0
-
-
