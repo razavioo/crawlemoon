@@ -1,17 +1,17 @@
 # Crawilfy MCP Server
 
 <p align="center">
-  <img src="assets/hero.png" alt="Crawilfy MCP Server — free, AI-native web crawling for the agent era" width="100%"/>
+  <img src="https://raw.githubusercontent.com/razavioo/crawilfy-mcp-server/main/assets/hero.png" alt="Crawilfy MCP Server — free, AI-native web crawling for the agent era" width="100%"/>
 </p>
 
 <p align="left">
-  <img alt="python 3.10+ · pypi 1.1.0 · MIT · MCP-native · code style black" src="assets/badges.png" height="22"/>
+  <img alt="python 3.10+ · pypi 1.1.0 · MIT · MCP-native · code style black" src="https://raw.githubusercontent.com/razavioo/crawilfy-mcp-server/main/assets/badges.png" height="22"/>
 </p>
 
 A **free, open-source MCP server** that gives any agent (Claude Code, Cursor, Windsurf, …) **55 production-grade tools** for the full web-crawling stack: deep analysis, stealth, API discovery, session recording → runnable crawler, smart extraction. No proprietary API. No per-request fee.
 
 <p align="center">
-  <img src="assets/features.png" alt="Crawilfy capabilities — deep analysis, stealth, record→crawler, smart extraction" width="100%"/>
+  <img src="https://raw.githubusercontent.com/razavioo/crawilfy-mcp-server/main/assets/features.png" alt="Crawilfy capabilities — deep analysis, stealth, record→crawler, smart extraction" width="100%"/>
 </p>
 
 ---
@@ -19,7 +19,7 @@ A **free, open-source MCP server** that gives any agent (Claude Code, Cursor, Wi
 ## Quick start
 
 <p align="center">
-  <img src="assets/install.png" alt="Three install paths — uvx, pipx, pip" width="100%"/>
+  <img src="https://raw.githubusercontent.com/razavioo/crawilfy-mcp-server/main/assets/install.png" alt="Three install paths — uvx, pipx, pip" width="100%"/>
 </p>
 
 The recommended path needs no install — `uvx` runs straight from PyPI:
@@ -44,7 +44,7 @@ The recommended path needs no install — `uvx` runs straight from PyPI:
 ## How it works
 
 <p align="center">
-  <img src="assets/architecture.png" alt="Agent → Crawilfy → Browser/HTTP/Proxy → target web" width="100%"/>
+  <img src="https://raw.githubusercontent.com/razavioo/crawilfy-mcp-server/main/assets/architecture.png" alt="Agent → Crawilfy → Browser/HTTP/Proxy → target web" width="100%"/>
 </p>
 
 Your agent talks to Crawilfy over the Model Context Protocol. Crawilfy owns a hardened browser pool, an HTTP stack with TLS fingerprinting, and a rotating proxy pool. While it fetches pages, it captures network traffic, reads scripts, and introspects schemas — so the agent gets clean structured data, not raw HTML.
