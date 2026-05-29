@@ -11,13 +11,12 @@ from urllib.parse import urlparse
 from playwright.async_api import (
     Browser,
     BrowserContext,
-    Page,
     async_playwright,
     Playwright,
     Error as PlaywrightError,
 )
 
-from .proxy_pool import ProxyPool, RotationStrategy
+from .proxy_pool import ProxyPool
 from ...exceptions import BrowserInitError, BrowserPoolExhaustedError, BrowserPoolError
 
 logger = logging.getLogger(__name__)

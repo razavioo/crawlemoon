@@ -2,7 +2,7 @@
 
 The manager exposes a unified interface regardless of backend:
 - Default: in-process LRU dict (zero config required)
-- Redis:   set ``CRAWILFY_REDIS_URL`` env-var (e.g. redis://localhost:6379/0)
+- Redis:   set ``CRAWLIFY_REDIS_URL`` env-var (e.g. redis://localhost:6379/0)
 
 The Redis backend is optional; if ``redis`` is not installed the manager
 falls back silently to the in-memory backend.
@@ -14,7 +14,7 @@ import json
 import logging
 import os
 import pickle
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Optional, Any, Dict
 from dataclasses import dataclass
 
@@ -111,7 +111,7 @@ class CacheManager:
     """Manages caching for pages, responses, and state snapshots.
 
     Uses an in-memory LRU-eviction dict by default.  Set the env-var
-    ``CRAWILFY_REDIS_URL`` to switch to a Redis backend (requires the
+    ``CRAWLIFY_REDIS_URL`` to switch to a Redis backend (requires the
     ``redis`` package).
     """
 
@@ -125,7 +125,7 @@ class CacheManager:
         self.default_ttl_seconds = default_ttl_seconds
 
         # Try Redis backend first
-        resolved_redis_url = redis_url or os.getenv("CRAWILFY_REDIS_URL")
+        resolved_redis_url = redis_url or os.getenv("CRAWLIFY_REDIS_URL")
         self._redis: Optional[_RedisBackend] = None
         if resolved_redis_url:
             try:
@@ -184,7 +184,7 @@ class CacheManager:
         key_data = {"url": url, **params}
         key_str = json.dumps(key_data, sort_keys=True)
         digest = hashlib.sha256(key_str.encode()).hexdigest()
-        return f"crawilfy:{namespace}:{digest}"
+        return f"crawlify:{namespace}:{digest}"
 
     def _evict_lru(self, cache: Dict[str, CacheEntry]) -> None:
         """Evict the least-recently-used entry when the cache is full."""

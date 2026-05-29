@@ -1,10 +1,10 @@
-"""Crawilfy - Advanced Web Crawling Platform."""
+"""Crawlify - Advanced Web Crawling Platform."""
 
 __version__ = "1.1.5"
 
-# Re-export the exception hierarchy so callers can use ``from src import CrawilfyError``
+# Re-export the exception hierarchy so callers can use ``from src import CrawlifyError``
 from .exceptions import (  # noqa: F401
-    CrawilfyError,
+    CrawlifyError,
     BrowserError,
     BrowserPoolError,
     BrowserPoolExhaustedError,

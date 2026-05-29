@@ -1,17 +1,17 @@
-# Crawilfy MCP Server
+# Crawlify MCP Server
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/razavioo/crawilfy-mcp-server/main/assets/hero.png" alt="Crawilfy MCP Server — free, AI-native web crawling for the agent era" width="100%"/>
+  <img src="https://raw.githubusercontent.com/razavioo/crawlify-mcp-server/main/assets/hero.png" alt="Crawlify MCP Server — free, AI-native web crawling for the agent era" width="100%"/>
 </p>
 
 <p align="left">
-  <img alt="python 3.10+ · pypi 1.1.0 · MIT · MCP-native · code style black" src="https://raw.githubusercontent.com/razavioo/crawilfy-mcp-server/main/assets/badges.png" height="22"/>
+  <img alt="python 3.10+ · pypi 1.1.0 · MIT · MCP-native · code style black" src="https://raw.githubusercontent.com/razavioo/crawlify-mcp-server/main/assets/badges.png" height="22"/>
 </p>
 
 A **free, open-source MCP server** that gives any agent (Claude Code, Cursor, Windsurf, …) **55 production-grade tools** for the full web-crawling stack: deep analysis, stealth, API discovery, session recording → runnable crawler, smart extraction. No proprietary API. No per-request fee.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/razavioo/crawilfy-mcp-server/main/assets/features.png" alt="Crawilfy capabilities — deep analysis, stealth, record→crawler, smart extraction" width="100%"/>
+  <img src="https://raw.githubusercontent.com/razavioo/crawlify-mcp-server/main/assets/features.png" alt="Crawlify capabilities — deep analysis, stealth, record→crawler, smart extraction" width="100%"/>
 </p>
 
 ---
@@ -19,7 +19,7 @@ A **free, open-source MCP server** that gives any agent (Claude Code, Cursor, Wi
 ## Quick start
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/razavioo/crawilfy-mcp-server/main/assets/install.png" alt="Three install paths — uvx, pipx, pip" width="100%"/>
+  <img src="https://raw.githubusercontent.com/razavioo/crawlify-mcp-server/main/assets/install.png" alt="Three install paths — uvx, pipx, pip" width="100%"/>
 </p>
 
 The recommended path needs no install — `uvx` runs straight from PyPI:
@@ -27,15 +27,15 @@ The recommended path needs no install — `uvx` runs straight from PyPI:
 ```json
 {
   "mcpServers": {
-    "crawilfy": {
+    "crawlify": {
       "command": "uvx",
-      "args": ["crawilfy-mcp-server"]
+      "args": ["crawlify-mcp-server"]
     }
   }
 }
 ```
 
-> Requires [`uv`](https://docs.astral.sh/uv/getting-started/installation/). Install once: `curl -LsSf https://astral.sh/uv/install.sh | sh`. Or use `pipx run crawilfy-mcp-server` / `pip install crawilfy-mcp-server` instead.
+> Requires [`uv`](https://docs.astral.sh/uv/getting-started/installation/). Install once: `curl -LsSf https://astral.sh/uv/install.sh | sh`. Or use `pipx run crawlify-mcp-server` / `pip install crawlify-mcp-server` instead.
 
 **Where to put that JSON:** Cursor → Settings → MCP. Claude Code → `~/.config/claude/mcp_settings.json`. Windsurf → Settings → MCP Servers.
 
@@ -44,10 +44,10 @@ The recommended path needs no install — `uvx` runs straight from PyPI:
 ## How it works
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/razavioo/crawilfy-mcp-server/main/assets/architecture.png" alt="Agent → Crawilfy → Browser/HTTP/Proxy → target web" width="100%"/>
+  <img src="https://raw.githubusercontent.com/razavioo/crawlify-mcp-server/main/assets/architecture.png" alt="Agent → Crawlify → Browser/HTTP/Proxy → target web" width="100%"/>
 </p>
 
-Your agent talks to Crawilfy over the Model Context Protocol. Crawilfy owns a hardened browser pool, an HTTP stack with TLS fingerprinting, and a rotating proxy pool. While it fetches pages, it captures network traffic, reads scripts, and introspects schemas — so the agent gets clean structured data, not raw HTML.
+Your agent talks to Crawlify over the Model Context Protocol. Crawlify owns a hardened browser pool, an HTTP stack with TLS fingerprinting, and a rotating proxy pool. While it fetches pages, it captures network traffic, reads scripts, and introspects schemas — so the agent gets clean structured data, not raw HTML.
 
 ---
 
@@ -73,20 +73,20 @@ A short list — see the source for the full set of 55 tools.
 
 ```bash
 # OpenRouter (free models exist)
-CRAWILFY_LLM_PROVIDER=openrouter
-CRAWILFY_LLM_API_KEY=sk-or-v1-xxx
-CRAWILFY_LLM_MODEL=meta-llama/llama-3.2-3b-instruct:free
+CRAWLIFY_LLM_PROVIDER=openrouter
+CRAWLIFY_LLM_API_KEY=sk-or-v1-xxx
+CRAWLIFY_LLM_MODEL=meta-llama/llama-3.2-3b-instruct:free
 
 # Groq (free, very fast)
-CRAWILFY_LLM_PROVIDER=groq
-CRAWILFY_LLM_API_KEY=gsk_xxx
+CRAWLIFY_LLM_PROVIDER=groq
+CRAWLIFY_LLM_API_KEY=gsk_xxx
 
 # Local Ollama (no key needed)
-CRAWILFY_LLM_PROVIDER=ollama
-CRAWILFY_LLM_MODEL=llama3.2
+CRAWLIFY_LLM_PROVIDER=ollama
+CRAWLIFY_LLM_MODEL=llama3.2
 ```
 
-Together, DeepSeek, Mistral, Fireworks, and standard OpenAI also work via `CRAWILFY_LLM_BASE_URL`.
+Together, DeepSeek, Mistral, Fireworks, and standard OpenAI also work via `CRAWLIFY_LLM_BASE_URL`.
 
 ---
 
@@ -94,20 +94,20 @@ Together, DeepSeek, Mistral, Fireworks, and standard OpenAI also work via `CRAWI
 
 | Variable | Default | Notes |
 |---|---|---|
-| `CRAWILFY_HEADLESS` | `true` | Run browser without UI |
-| `CRAWILFY_BROWSER` | `chromium` | `chromium` / `firefox` / `webkit` |
-| `CRAWILFY_POOL_SIZE` | `5` | Max concurrent browsers |
-| `CRAWILFY_NAV_TIMEOUT` | `30.0` | Page-load timeout (s) |
-| `CRAWILFY_API_KEY` | _unset_ | If set, every tool call must include matching `_api_key` |
-| `CRAWILFY_ALLOW_DANGEROUS_JS` | `false` | Required for `execute_js` / `execute_cdp` / `deobfuscate_js` |
-| `CRAWILFY_JS_MAX_LENGTH` | `50000` | Length cap for JS payloads |
-| `CRAWILFY_JS_EXEC_TIMEOUT` | `10.0` | Per-script timeout (s) |
+| `CRAWLIFY_HEADLESS` | `true` | Run browser without UI |
+| `CRAWLIFY_BROWSER` | `chromium` | `chromium` / `firefox` / `webkit` |
+| `CRAWLIFY_POOL_SIZE` | `5` | Max concurrent browsers |
+| `CRAWLIFY_NAV_TIMEOUT` | `30.0` | Page-load timeout (s) |
+| `CRAWLIFY_API_KEY` | _unset_ | If set, every tool call must include matching `_api_key` |
+| `CRAWLIFY_ALLOW_DANGEROUS_JS` | `false` | Required for `execute_js` / `execute_cdp` / `deobfuscate_js` |
+| `CRAWLIFY_JS_MAX_LENGTH` | `50000` | Length cap for JS payloads |
+| `CRAWLIFY_JS_EXEC_TIMEOUT` | `10.0` | Per-script timeout (s) |
 
 ---
 
 ## Security
 
-`execute_js`, `execute_cdp`, and `deobfuscate_js` are **disabled by default** — they execute or operate on arbitrary code in a real browser. Enable on trusted networks with `CRAWILFY_ALLOW_DANGEROUS_JS=true`. Even then, payloads are length-capped, time-bounded, and a denylist rejects `eval`, `new Function`, dynamic `import()`, `document.write`, `importScripts`, and `WebAssembly.{compile,instantiate}`. Set `CRAWILFY_API_KEY` so MCP clients must present a matching `_api_key`.
+`execute_js`, `execute_cdp`, and `deobfuscate_js` are **disabled by default** — they execute or operate on arbitrary code in a real browser. Enable on trusted networks with `CRAWLIFY_ALLOW_DANGEROUS_JS=true`. Even then, payloads are length-capped, time-bounded, and a denylist rejects `eval`, `new Function`, dynamic `import()`, `document.write`, `importScripts`, and `WebAssembly.{compile,instantiate}`. Set `CRAWLIFY_API_KEY` so MCP clients must present a matching `_api_key`.
 
 These are mitigations, not a sandbox: do not expose this server to untrusted clients.
 
@@ -116,8 +116,8 @@ These are mitigations, not a sandbox: do not expose this server to untrusted cli
 ## Develop
 
 ```bash
-git clone https://github.com/razavioo/crawilfy-mcp-server.git
-cd crawilfy-mcp-server
+git clone https://github.com/razavioo/crawlify-mcp-server.git
+cd crawlify-mcp-server
 make dev-install      # editable install + dev/captcha/ocr extras + pre-commit
 make test             # pytest
 make lint             # ruff + mypy

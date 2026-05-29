@@ -1,2 +1,2 @@
-"""Integration tests for Crawilfy MCP Server."""
+"""Integration tests for Crawlify MCP Server."""
 

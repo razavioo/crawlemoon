@@ -1,9 +1,8 @@
 """Authentication flow analyzer."""
 
 import logging
-from typing import Dict, Any, Optional
+from typing import Optional
 from dataclasses import dataclass
-from enum import Enum
 
 from ..network.analyzer import AuthType
 

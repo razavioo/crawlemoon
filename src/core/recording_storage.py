@@ -31,10 +31,10 @@ class RecordingStorage:
 
     Args:
         storage_dir: Directory to store recordings.  Defaults to
-            ``~/.crawilfy/recordings``.
+            ``~/.crawlify/recordings``.
         max_age_days: Recordings older than this many days are considered
             expired and eligible for purging.  Set to ``None`` to disable
-            automatic expiry.  Defaults to ``CRAWILFY_RECORDING_MAX_AGE_DAYS``
+            automatic expiry.  Defaults to ``CRAWLIFY_RECORDING_MAX_AGE_DAYS``
             env-var or :data:`_DEFAULT_MAX_AGE_DAYS`.
     """
 
@@ -48,13 +48,13 @@ class RecordingStorage:
     ):
         if storage_dir is None:
             home = Path.home()
-            storage_dir = str(home / ".crawilfy" / "recordings")
+            storage_dir = str(home / ".crawlify" / "recordings")
 
         self.storage_dir = Path(storage_dir)
         self.storage_dir.mkdir(parents=True, exist_ok=True)
 
         if max_age_days is RecordingStorage._UNSET:
-            env_val = os.getenv("CRAWILFY_RECORDING_MAX_AGE_DAYS")
+            env_val = os.getenv("CRAWLIFY_RECORDING_MAX_AGE_DAYS")
             max_age_days = int(env_val) if env_val and env_val.isdigit() else _DEFAULT_MAX_AGE_DAYS
         # Callers may pass None to explicitly disable retention
         self.max_age_days: Optional[int] = max_age_days

@@ -11,7 +11,7 @@ from typing import Any, Dict, List, Optional
 from dataclasses import dataclass, field
 
 from ..recorder.session import SessionRecording
-from ..recorder.state_machine import StateMachine, StateType
+from ..recorder.state_machine import StateMachine
 from ...exceptions import CrawlerGenerationError
 
 logger = logging.getLogger(__name__)

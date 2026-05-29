@@ -1,4 +1,4 @@
-"""MCP Server for Crawilfy."""
+"""MCP Server for Crawlify."""
 
 
 

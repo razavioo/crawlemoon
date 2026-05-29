@@ -15,7 +15,7 @@ from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
-from ...exceptions import SessionEncryptionError, SessionNotFoundError, SessionStorageError
+from ...exceptions import SessionEncryptionError, SessionStorageError
 
 logger = logging.getLogger(__name__)
 
@@ -162,8 +162,8 @@ class SessionManager:
         self._encryption_password: Optional[bytes] = None
         if encryption_key:
             self._init_encryption(encryption_key)
-        elif os.getenv("CRAWILFY_ENCRYPTION_KEY"):
-            self._init_encryption(os.getenv("CRAWILFY_ENCRYPTION_KEY"))
+        elif os.getenv("CRAWLIFY_ENCRYPTION_KEY"):
+            self._init_encryption(os.getenv("CRAWLIFY_ENCRYPTION_KEY"))
         
         # Load persisted sessions
         self._load_from_disk()

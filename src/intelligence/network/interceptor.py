@@ -2,9 +2,8 @@
 
 import logging
 from dataclasses import dataclass, field
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Optional
 from datetime import datetime
-from enum import Enum
 
 from playwright.async_api import Page, Request, Response, Error as PlaywrightError
 

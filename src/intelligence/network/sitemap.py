@@ -1,10 +1,9 @@
 """Sitemap and robots.txt analyzer."""
 
 import logging
-import re
 import xml.etree.ElementTree as ET
-from typing import Dict, List, Optional, Set
-from urllib.parse import urljoin, urlparse
+from typing import Dict, List, Optional
+from urllib.parse import urlparse
 from dataclasses import dataclass, field
 
 import httpx

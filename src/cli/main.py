@@ -4,7 +4,6 @@ import asyncio
 import argparse
 import logging
 import sys
-from typing import Optional
 
 from ..core.browser.pool import BrowserPool
 from ..core.browser.stealth import create_stealth_context, apply_stealth_to_page
@@ -40,7 +39,7 @@ async def deep_analyze(url: str, full: bool = False):
         rest_endpoints = discovery.detect_rest_endpoints(requests, responses)
         graphql = discovery.detect_graphql(requests, responses)
         
-        print(f"\nResults:")
+        print("\nResults:")
         print(f"  REST APIs: {len(rest_endpoints)}")
         print(f"  GraphQL: {'Yes' if graphql else 'No'}")
         print(f"  Network requests: {len(requests)}")
@@ -133,7 +132,6 @@ async def record_session(url: str, output: str):
         
         # Save full recording to file
         import json
-        from datetime import datetime
         
         # Serialize recording to JSON
         recording_data = {
@@ -257,7 +255,7 @@ async def generate_crawler(from_recording: str, output: str):
         with open(output, 'w') as f:
             f.write(output_content)
         
-        print(f"\nCrawler generated successfully!")
+        print("\nCrawler generated successfully!")
         print(f"  Name: {crawler_def.name}")
         print(f"  Steps: {len(crawler_def.steps)}")
         print(f"  Format: {output_format}")
@@ -276,7 +274,7 @@ async def run_crawler(crawler_file: str, stealth: bool = False):
 
 def main():
     """Main CLI entry point."""
-    parser = argparse.ArgumentParser(description="Crawilfy - Advanced Web Crawling Platform")
+    parser = argparse.ArgumentParser(description="Crawlify - Advanced Web Crawling Platform")
     
     subparsers = parser.add_subparsers(dest="command", help="Command to execute")
     

@@ -1,8 +1,8 @@
 """Chrome DevTools Protocol (CDP) direct access."""
 
 import logging
-from typing import Dict, Any, Optional, List
-from playwright.async_api import Browser, BrowserContext, CDPSession
+from typing import Dict, Any, Optional
+from playwright.async_api import BrowserContext, CDPSession
 
 logger = logging.getLogger(__name__)
 

@@ -425,3 +425,28 @@ class StructuredExtractArgs(_URLMixin, _DOMFilterMixin):
     schema_def: Dict[str, Any] = Field(..., alias="schema", description="Target JSON schema structure for extraction")
     instructions: Optional[str] = Field(None, description="Optional natural-language guidance for extraction context")
 
+
+# ---------------------------------------------------------------------------
+# Xray / V2ray Proxy Management
+# ---------------------------------------------------------------------------
+
+class ConfigureXraySubscriptionArgs(BaseModel):
+    subscription_url: Optional[str] = Field(None, description="URL containing base64 V2ray subscription configurations")
+    raw_links: Optional[List[str]] = Field(None, description="List of raw protocol links (vmess://, vless://, trojan://, ss://)")
+    num_ports: int = Field(3, ge=1, le=20, description="Number of concurrent SOCKS5 ports to run")
+    start_port: int = Field(10801, ge=1024, le=65535, description="Starting port number for local SOCKS5 proxy inbounds")
+
+
+class GetXrayStatusArgs(BaseModel):
+    pass
+
+
+class RotateXrayNodeArgs(BaseModel):
+    port: int = Field(..., ge=1024, le=65535, description="SOCKS5 port to rotate node on")
+
+
+class TestXrayNodesArgs(BaseModel):
+    test_url: str = Field("http://httpbin.org/ip", description="URL to check latency and connectivity against")
+    max_concurrency: int = Field(5, ge=1, le=10, description="Max concurrent benchmark processes to spawn")
+
+

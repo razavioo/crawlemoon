@@ -3,13 +3,11 @@
 import asyncio
 import logging
 import time
-from dataclasses import dataclass, field
-from typing import Dict, Optional, List
-from datetime import datetime, timedelta
+from dataclasses import dataclass
+from typing import Dict, Optional
 from urllib.parse import urlparse
 from collections import deque
 
-from ..exceptions import RateLimitError
 
 logger = logging.getLogger(__name__)
 

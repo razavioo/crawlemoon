@@ -1,7 +1,7 @@
 """Dynamic JavaScript analysis at runtime."""
 
 import logging
-from typing import List, Dict, Any
+from typing import List, Any
 from dataclasses import dataclass
 from playwright.async_api import Page
 

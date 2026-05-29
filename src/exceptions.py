@@ -1,6 +1,6 @@
-"""Custom exception hierarchy for Crawilfy MCP Server.
+"""Custom exception hierarchy for Crawlify MCP Server.
 
-All application-specific exceptions derive from CrawilfyError, allowing
+All application-specific exceptions derive from CrawlifyError, allowing
 callers to catch the entire family with a single except clause while still
 being able to target narrower sub-types when needed.
 """
@@ -10,15 +10,15 @@ being able to target narrower sub-types when needed.
 # Base
 # ---------------------------------------------------------------------------
 
-class CrawilfyError(Exception):
-    """Root exception for all Crawilfy errors."""
+class CrawlifyError(Exception):
+    """Root exception for all Crawlify errors."""
 
 
 # ---------------------------------------------------------------------------
 # Browser / Pool
 # ---------------------------------------------------------------------------
 
-class BrowserError(CrawilfyError):
+class BrowserError(CrawlifyError):
     """Base class for browser-related errors."""
 
 
@@ -46,7 +46,7 @@ class PageInteractionError(BrowserError):
 # Proxy
 # ---------------------------------------------------------------------------
 
-class ProxyError(CrawilfyError):
+class ProxyError(CrawlifyError):
     """Base class for proxy-related errors."""
 
 
@@ -62,7 +62,7 @@ class ProxyTestError(ProxyError):
 # Network / HTTP
 # ---------------------------------------------------------------------------
 
-class NetworkError(CrawilfyError):
+class NetworkError(CrawlifyError):
     """Base class for network-level errors."""
 
 
@@ -86,7 +86,7 @@ class ConnectionPoolError(NetworkError):
 # Cache
 # ---------------------------------------------------------------------------
 
-class CacheError(CrawilfyError):
+class CacheError(CrawlifyError):
     """Base class for cache-related errors."""
 
 
@@ -102,7 +102,7 @@ class CacheSerializationError(CacheError):
 # Session
 # ---------------------------------------------------------------------------
 
-class SessionError(CrawilfyError):
+class SessionError(CrawlifyError):
     """Base class for session-related errors."""
 
 
@@ -122,7 +122,7 @@ class SessionStorageError(SessionError):
 # Recording
 # ---------------------------------------------------------------------------
 
-class RecordingError(CrawilfyError):
+class RecordingError(CrawlifyError):
     """Base class for session-recording errors."""
 
 
@@ -142,7 +142,7 @@ class RecordingExpiredError(RecordingError):
 # Intelligence / Analysis
 # ---------------------------------------------------------------------------
 
-class AnalysisError(CrawilfyError):
+class AnalysisError(CrawlifyError):
     """Base class for intelligence / analysis errors."""
 
 
@@ -182,7 +182,7 @@ class ContentExtractionError(AnalysisError):
 # Crawler generation
 # ---------------------------------------------------------------------------
 
-class CrawlerGenerationError(CrawilfyError):
+class CrawlerGenerationError(CrawlifyError):
     """Crawler code or YAML could not be generated."""
 
 
@@ -190,11 +190,11 @@ class CrawlerGenerationError(CrawilfyError):
 # Configuration / Validation
 # ---------------------------------------------------------------------------
 
-class ConfigurationError(CrawilfyError):
+class ConfigurationError(CrawlifyError):
     """The server configuration is invalid or incomplete."""
 
 
-class ValidationError(CrawilfyError):
+class ValidationError(CrawlifyError):
     """A tool argument or user-supplied value failed validation."""
 
 

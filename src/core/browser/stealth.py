@@ -2,7 +2,7 @@
 
 import random
 import logging
-from typing import Dict, Optional
+from typing import Optional
 from playwright.async_api import BrowserContext, Page
 
 try:

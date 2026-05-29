@@ -1,4 +1,4 @@
-"""Test suite for Crawilfy MCP Server."""
+"""Test suite for Crawlify MCP Server."""
 
 
 

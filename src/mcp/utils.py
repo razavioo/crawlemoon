@@ -12,9 +12,9 @@ import logging
 import re
 import time
 import uuid
-from contextlib import asynccontextmanager, contextmanager
+from contextlib import asynccontextmanager
 from functools import wraps
-from typing import Any, AsyncIterator, Dict, Iterator, Optional, Tuple
+from typing import Any, AsyncIterator, Dict, Optional, Tuple
 from urllib.parse import urlparse
 
 from ..exceptions import URLValidationError, ValidationError

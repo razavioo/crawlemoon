@@ -1,4 +1,4 @@
-"""MCP Server implementation for Crawilfy - Enhanced and Production-Ready."""
+"""MCP Server implementation for Crawlify - Enhanced and Production-Ready."""
 
 import asyncio
 import logging
@@ -14,6 +14,7 @@ from mcp.types import Tool, TextContent
 from ..core.browser.pool import BrowserPool
 from ..core.browser.stealth import create_stealth_context, apply_stealth_to_page
 from ..core.browser.proxy_pool import ProxyPool, RotationStrategy
+from ..core.browser.xray import CrawlifyV2rayManager
 from ..core.browser.cdp import CDPClient
 from ..core.rate_limiter import RateLimiter
 from ..core.recording_storage import RecordingStorage
@@ -32,22 +33,18 @@ except ImportError as _sitemap_import_error:
     )
 from ..intelligence.js.analyzer import JSAnalyzer
 from ..intelligence.js.deobfuscator import JSDeobfuscator
-from ..intelligence.recorder.session import SessionRecorder, SessionRecording, Event, EventType, StateSnapshot
+from ..intelligence.recorder.session import SessionRecorder
 from ..intelligence.security.bot_detection import BotDetectionAnalyzer
-from ..intelligence.security.captcha_solver import get_captcha_solver
 from ..intelligence.security.technology_detector import get_technology_detector
 from ..intelligence.extraction.content import get_content_extractor
 from ..intelligence.extraction.smart import get_smart_extractor
 from ..intelligence.generator.crawler_gen import CrawlerGenerator
 from .config import MCPServerConfig
-from .utils import validate_url, validate_arguments, with_timeout, with_retry, validate_js_payload
+from .utils import validate_arguments, with_retry, validate_js_payload
 from .schemas import PYDANTIC_AVAILABLE
 from ..exceptions import (
     RecordingNotFoundError,
     RecordingExpiredError,
-    RecordingSerializationError,
-    BrowserPoolExhaustedError,
-    BrowserInitError,
     ValidationError,
 )
 from playwright.async_api import Error as PlaywrightError
@@ -59,11 +56,11 @@ config = MCPServerConfig.from_env()
 
 # Initialize proxy pool if configured
 _proxy_pool = None
-proxy_list = os.getenv("CRAWILFY_PROXIES")
+proxy_list = os.getenv("CRAWLIFY_PROXIES")
 if proxy_list:
     proxy_urls = [p.strip() for p in proxy_list.split(",") if p.strip()]
     if proxy_urls:
-        rotation_strategy = os.getenv("CRAWILFY_PROXY_ROTATION", "round_robin")
+        rotation_strategy = os.getenv("CRAWLIFY_PROXY_ROTATION", "round_robin")
         try:
             strategy = RotationStrategy(rotation_strategy.lower())
         except ValueError:
@@ -82,6 +79,9 @@ browser_pool = BrowserPool(
     browser_type=config.browser_type,
     proxy_pool=_proxy_pool,
 )
+# Initialize dynamic Xray/V2ray manager
+_xray_manager = None
+
 network_interceptor = DeepNetworkInterceptor()
 api_discovery = APIDiscoveryEngine()
 request_analyzer = RequestAnalyzer()
@@ -103,12 +103,12 @@ rate_limiter = RateLimiter()
 cache_manager = CacheManager(max_size=1000, default_ttl_seconds=3600)
 
 # Configure rate limiter from environment
-default_rps = float(os.getenv("CRAWILFY_RATE_LIMIT_RPS", "1.0"))
+default_rps = float(os.getenv("CRAWLIFY_RATE_LIMIT_RPS", "1.0"))
 rate_limiter.set_default_rate_limit(requests_per_second=default_rps)
 
 # Initialize session manager
-session_storage_dir = os.getenv("CRAWILFY_SESSION_DIR", ".sessions")
-user_data_dir = os.getenv("CRAWILFY_USER_DATA_DIR")
+session_storage_dir = os.getenv("CRAWLIFY_SESSION_DIR", ".sessions")
+user_data_dir = os.getenv("CRAWLIFY_USER_DATA_DIR")
 session_manager = SessionManager(
     storage_path=session_storage_dir,
     user_data_dir=user_data_dir,
@@ -124,7 +124,7 @@ async def init_browser_pool():
     logger.info("Browser pool initialized")
 
 # MCP Server
-server = Server("crawilfy-mcp-server")
+server = Server("crawlify-mcp-server")
 
 
 @asynccontextmanager
@@ -1196,6 +1196,75 @@ async def list_tools() -> List[Tool]:
                 "required": ["url", "schema"]
             }
         ),
+        Tool(
+            name="configure_xray_subscription",
+            description="Configure V2ray/Xray subscription or raw links to set up automatic multi-port exit proxies.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "subscription_url": {
+                        "type": "string",
+                        "description": "URL containing base64 V2ray subscription configurations"
+                    },
+                    "raw_links": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "List of raw protocol links (vmess://, vless://, trojan://, ss://)"
+                    },
+                    "num_ports": {
+                        "type": "integer",
+                        "description": "Number of concurrent SOCKS5 ports to run (default: 3)",
+                        "default": 3
+                    },
+                    "start_port": {
+                        "type": "integer",
+                        "description": "Starting port number for local SOCKS5 proxies (default: 10801)",
+                        "default": 10801
+                    }
+                }
+            }
+        ),
+        Tool(
+            name="get_xray_status",
+            description="Get the status of all active local Xray clients, exit nodes, and latencies.",
+            inputSchema={
+                "type": "object",
+                "properties": {}
+            }
+        ),
+        Tool(
+            name="rotate_xray_node",
+            description="Manually rotate the exit node on a specific local Xray port.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "port": {
+                        "type": "integer",
+                        "description": "SOCKS5 port to rotate node on"
+                    }
+                },
+                "required": ["port"]
+            }
+        ),
+        Tool(
+            name="test_xray_nodes",
+            description="Concurrently measure HTTP latencies of all subscription nodes to rank the best connections.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "test_url": {
+                        "type": "string",
+                        "description": "URL to check latency and connectivity against (default: http://httpbin.org/ip)",
+                        "default": "http://httpbin.org/ip"
+                    },
+                    "max_concurrency": {
+                        "type": "integer",
+                        "description": "Max concurrent benchmark processes to spawn (default: 5)",
+                        "default": 5
+                    }
+                }
+            }
+        ),
     ]
 
 
@@ -1262,6 +1331,10 @@ def _get_pydantic_schema_map() -> Dict[str, Any]:
         "clear_cache": _s.ClearCacheArgs,
         "crawl": _s.CrawlArgs,
         "structured_extract": _s.StructuredExtractArgs,
+        "configure_xray_subscription": _s.ConfigureXraySubscriptionArgs,
+        "get_xray_status": _s.GetXrayStatusArgs,
+        "rotate_xray_node": _s.RotateXrayNodeArgs,
+        "test_xray_nodes": _s.TestXrayNodesArgs,
     }
     return _PYDANTIC_SCHEMA_MAP
 
@@ -1279,7 +1352,7 @@ async def get_tool_schema_map() -> Dict[str, Any]:
 async def call_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
     """Handle tool calls with comprehensive error handling.
 
-    Auth: when ``CRAWILFY_API_KEY`` is set in the environment, every call must
+    Auth: when ``CRAWLIFY_API_KEY`` is set in the environment, every call must
     carry a matching ``_api_key`` argument. Useful when the server is exposed
     over a non-stdio transport.
     """
@@ -1383,6 +1456,10 @@ async def call_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
             "wait_and_extract": handle_wait_and_extract,
             "crawl": handle_crawl,
             "structured_extract": handle_structured_extract,
+            "configure_xray_subscription": handle_configure_xray_subscription,
+            "get_xray_status": handle_get_xray_status,
+            "rotate_xray_node": handle_rotate_xray_node,
+            "test_xray_nodes": handle_test_xray_nodes,
         }
         
         handler = handler_map.get(name)
@@ -2557,7 +2634,7 @@ async def handle_crawl(arguments: Dict[str, Any]) -> Dict[str, Any]:
     css_selector = arguments.get("css_selector")
     exclude_selectors = arguments.get("exclude_selectors")
 
-    from urllib.parse import urlparse, urljoin
+    from urllib.parse import urlparse
     parsed_seed = urlparse(seed_url)
     base_domain = parsed_seed.netloc
 
@@ -2693,8 +2770,8 @@ async def handle_structured_extract(arguments: Dict[str, Any]) -> Dict[str, Any]
     if not smart_extractor.llm_enabled or not smart_extractor.client:
         return {
             "error": (
-                "LLM extraction is not configured. Please set the CRAWILFY_LLM_PROVIDER "
-                "and CRAWILFY_LLM_API_KEY environment variables to use structured_extract. "
+                "LLM extraction is not configured. Please set the CRAWLIFY_LLM_PROVIDER "
+                "and CRAWLIFY_LLM_API_KEY environment variables to use structured_extract. "
                 "Supported providers include openrouter, groq, together, ollama (local), or openai."
             )
         }
@@ -3043,6 +3120,215 @@ async def handle_test_proxy(arguments: Dict[str, Any]) -> Dict[str, Any]:
 
 
 # ============================================================================
+# Xray / V2ray Proxy Engine Handlers
+# ============================================================================
+
+async def handle_configure_xray_subscription(arguments: Dict[str, Any]) -> Dict[str, Any]:
+    """Handle configure_xray_subscription tool."""
+    global _xray_manager, _proxy_pool
+    
+    subscription_url = arguments.get("subscription_url")
+    raw_links = arguments.get("raw_links")
+    num_ports = arguments.get("num_ports", 3)
+    start_port = arguments.get("start_port", 10801)
+    
+    if not subscription_url and not raw_links:
+        return {
+            "error": "Either subscription_url or raw_links must be provided"
+        }
+        
+    try:
+        # Stop any existing Xray manager to clean up resources
+        if _xray_manager:
+            _xray_manager.stop_all()
+            
+        _xray_manager = CrawlifyV2rayManager(subscription_url=subscription_url)
+        _xray_manager.initialize()
+        
+        num_loaded = 0
+        if subscription_url:
+            num_loaded = await _xray_manager.fetch_subscription()
+        elif raw_links:
+            num_loaded = _xray_manager.load_raw_links(raw_links)
+            
+        if num_loaded == 0:
+            return {
+                "status": "failed",
+                "message": "No valid nodes were loaded."
+            }
+            
+        # Initialize proxy pool if it does not exist
+        if not _proxy_pool:
+            _proxy_pool = ProxyPool(
+                proxies=[],
+                rotation_strategy=RotationStrategy.ROUND_ROBIN,
+                xray_manager=_xray_manager
+            )
+            browser_pool.set_proxy_pool(_proxy_pool)
+        else:
+            _proxy_pool.xray_manager = _xray_manager
+            # Remove any existing xray proxies to prevent duplicates
+            _proxy_pool.proxies = [p for p in _proxy_pool.proxies if not p.is_xray]
+            
+        # Launch Xray clients on designated ports and register in proxy pool
+        active_ports = []
+        for i in range(num_ports):
+            port = start_port + i
+            try:
+                _xray_manager.start_port(port)
+                _proxy_pool.add_xray_proxy(port)
+                active_ports.append(port)
+            except Exception as port_err:
+                logger.error("Failed to start Xray client on port %d: %s", port, port_err)
+                
+        if not active_ports:
+            return {
+                "status": "failed",
+                "message": "Failed to start Xray on any port."
+            }
+            
+        return {
+            "status": "success",
+            "message": f"Successfully configured Xray proxy pool with {len(active_ports)} active ports.",
+            "loaded_nodes_count": num_loaded,
+            "active_ports": active_ports,
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Error configuring Xray subscription: {e}", exc_info=True)
+        return {
+            "status": "error",
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
+
+
+async def handle_get_xray_status(arguments: Dict[str, Any]) -> Dict[str, Any]:
+    """Handle get_xray_status tool."""
+    if not _xray_manager:
+        return {
+            "status": "inactive",
+            "message": "Xray core proxy manager has not been configured yet. Use configure_xray_subscription to start."
+        }
+        
+    try:
+        active_clients = []
+        for port, runner in _xray_manager.runners.items():
+            if runner.process and runner.process.poll() is None:
+                active_clients.append({
+                    "port": port,
+                    "node_name": runner.node.name if runner.node else "Unknown",
+                    "protocol": runner.node.protocol if runner.node else "Unknown",
+                    "address": runner.node.address if runner.node else "Unknown",
+                    "port_remote": runner.node.port if runner.node else 0,
+                    "status": "running"
+                })
+            else:
+                active_clients.append({
+                    "port": port,
+                    "status": "stopped"
+                })
+                
+        all_nodes = [
+            {
+                "name": node.name,
+                "protocol": node.protocol,
+                "address": node.address,
+                "port": node.port,
+                "latency_ms": round(node.latency, 2) if node.latency > 0 else -1,
+                "status": "healthy" if node.is_healthy else "unhealthy"
+            }
+            for node in _xray_manager.nodes
+        ]
+        
+        return {
+            "status": "active",
+            "binary_path": _xray_manager.binary_path,
+            "total_nodes": len(_xray_manager.nodes),
+            "active_clients": active_clients,
+            "all_nodes": all_nodes,
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Error getting Xray status: {e}", exc_info=True)
+        raise
+
+
+async def handle_rotate_xray_node(arguments: Dict[str, Any]) -> Dict[str, Any]:
+    """Handle rotate_xray_node tool."""
+    port = arguments["port"]
+    
+    if not _xray_manager:
+        return {
+            "error": "Xray manager not initialized. Please configure subscription first."
+        }
+        
+    try:
+        if port not in _xray_manager.runners:
+            return {
+                "error": f"No active Xray client found on port {port}"
+            }
+            
+        new_proxy_url = _xray_manager.rotate_node(port)
+        
+        # Reset failure count in proxy pool
+        if _proxy_pool:
+            for proxy in _proxy_pool.proxies:
+                if proxy.is_xray and proxy.xray_port == port:
+                    proxy.mark_success()
+                    
+        runner = _xray_manager.runners[port]
+        return {
+            "status": "rotated",
+            "port": port,
+            "new_proxy_url": new_proxy_url,
+            "new_node_name": runner.node.name if runner.node else "Unknown",
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Error rotating Xray node on port {port}: {e}", exc_info=True)
+        return {
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
+
+
+async def handle_test_xray_nodes(arguments: Dict[str, Any]) -> Dict[str, Any]:
+    """Handle test_xray_nodes tool."""
+    test_url = arguments.get("test_url", "http://httpbin.org/ip")
+    max_concurrency = arguments.get("max_concurrency", 5)
+    
+    if not _xray_manager:
+        return {
+            "error": "Xray manager not initialized. Please configure subscription first."
+        }
+        
+    try:
+        benchmark_results = await _xray_manager.benchmark_all_nodes(test_url, max_concurrency)
+        
+        # After testing/sorting, re-register node rotation mapping on active ports so they use the fastest nodes!
+        for port in list(_xray_manager.runners.keys()):
+            try:
+                _xray_manager.start_port(port)
+            except Exception as e:
+                logger.error(f"Failed to reset port {port} to top healthy node after benchmark: {e}")
+                
+        return {
+            "status": "success",
+            "message": "Successfully benchmarked and resorted all Xray nodes by speed.",
+            "results": benchmark_results,
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Error benchmarking Xray nodes: {e}", exc_info=True)
+        return {
+            "status": "error",
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
+
+
+# ============================================================================
 # GraphQL Handlers
 # ============================================================================
 
@@ -3086,7 +3372,7 @@ async def handle_execute_graphql(arguments: Dict[str, Any]) -> Dict[str, Any]:
 async def handle_execute_js(arguments: Dict[str, Any]) -> Dict[str, Any]:
     """Handle execute_js tool.
 
-    Security: refuses to run unless ``CRAWILFY_ALLOW_DANGEROUS_JS=true``.
+    Security: refuses to run unless ``CRAWLIFY_ALLOW_DANGEROUS_JS=true``.
     Enforces a length cap and per-script timeout (see :class:`MCPServerConfig`).
     """
     url = arguments["url"]
@@ -3276,7 +3562,7 @@ async def handle_export_recording(arguments: Dict[str, Any]) -> Dict[str, Any]:
             output = {
                 "log": {
                     "version": "1.2",
-                    "creator": {"name": "Crawilfy", "version": "1.0"},
+                    "creator": {"name": "Crawlify", "version": "1.0"},
                     "entries": [
                         {
                             "request": {
@@ -3328,22 +3614,22 @@ async def handle_extract_links(arguments: Dict[str, Any]) -> Dict[str, Any]:
         try:
             response = await navigate_to_url(page, url)
             
-            from urllib.parse import urlparse, urljoin
+            from urllib.parse import urlparse
             base_domain = urlparse(url).netloc
             
-            links = await page.evaluate(f"""
-                () => {{
+            links = await page.evaluate("""
+                () => {
                     const links = [];
-                    document.querySelectorAll('a[href]').forEach(a => {{
-                        links.push({{
+                    document.querySelectorAll('a[href]').forEach(a => {
+                        links.push({
                             href: a.href,
                             text: a.textContent.trim(),
                             title: a.title || null,
                             rel: a.rel || null,
-                        }});
-                    }});
+                        });
+                    });
                     return links;
-                }}
+                }
             """)
             
             # Filter links
@@ -3594,7 +3880,7 @@ async def handle_extract_tables(arguments: Dict[str, Any]) -> Dict[str, Any]:
 async def handle_execute_cdp(arguments: Dict[str, Any]) -> Dict[str, Any]:
     """Handle execute_cdp tool.
 
-    Security: refuses to run unless ``CRAWILFY_ALLOW_DANGEROUS_JS=true`` because
+    Security: refuses to run unless ``CRAWLIFY_ALLOW_DANGEROUS_JS=true`` because
     CDP exposes Runtime.evaluate, Page.addScriptToEvaluateOnNewDocument, etc.
     """
     url = arguments["url"]
@@ -3603,7 +3889,7 @@ async def handle_execute_cdp(arguments: Dict[str, Any]) -> Dict[str, Any]:
 
     if not config.allow_dangerous_js:
         raise ValidationError(
-            "execute_cdp is disabled. Set CRAWILFY_ALLOW_DANGEROUS_JS=true to enable."
+            "execute_cdp is disabled. Set CRAWLIFY_ALLOW_DANGEROUS_JS=true to enable."
         )
     if not isinstance(method, str) or not method:
         raise ValidationError("'method' must be a non-empty CDP method name")

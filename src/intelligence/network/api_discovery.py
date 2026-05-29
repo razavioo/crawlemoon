@@ -4,7 +4,7 @@ import re
 import json
 import logging
 from dataclasses import dataclass, field
-from typing import List, Dict, Any, Optional, Set
+from typing import List, Dict, Any, Optional
 from urllib.parse import urlparse, parse_qs
 from enum import Enum
 
@@ -189,7 +189,7 @@ class APIDiscoveryEngine:
                 "info": {
                     "title": title,
                     "version": "1.0.0",
-                    "description": "API discovered by Crawilfy"
+                    "description": "API discovered by Crawlify"
                 },
                 "paths": {}
             }
@@ -277,7 +277,7 @@ class APIDiscoveryEngine:
             "info": {
                 "title": title,
                 "version": "1.0.0",
-                "description": f"API discovered by Crawilfy. Base URL: {most_common_base}"
+                "description": f"API discovered by Crawlify. Base URL: {most_common_base}"
             },
             "servers": [
                 {

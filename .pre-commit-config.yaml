@@ -29,4 +29,4 @@ repos:
     hooks:
       - id: detect-secrets
         args: ["--baseline", ".secrets.baseline"]
-        exclude: ^(\.venv|venv|dist|crawilfy_mcp_server\.egg-info)/
+        exclude: ^(\.venv|venv|dist|crawlify_mcp_server\.egg-info)/

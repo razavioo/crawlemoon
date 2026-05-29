@@ -86,18 +86,18 @@ def test_config_from_env_defaults():
     """Test config from environment with no env vars set."""
     # Clear relevant env vars
     env_vars = [
-        "CRAWILFY_NAV_TIMEOUT",
-        "CRAWILFY_REQ_TIMEOUT",
-        "CRAWILFY_OP_TIMEOUT",
-        "CRAWILFY_HEADLESS",
-        "CRAWILFY_BROWSER",
-        "CRAWILFY_POOL_SIZE",
-        "CRAWILFY_MAX_RETRIES",
-        "CRAWILFY_RETRY_DELAY",
-        "CRAWILFY_RECORDING_DIR",
-        "CRAWILFY_AUTO_SAVE",
-        "CRAWILFY_WAIT_NETWORK",
-        "CRAWILFY_SCREENSHOTS",
+        "CRAWLIFY_NAV_TIMEOUT",
+        "CRAWLIFY_REQ_TIMEOUT",
+        "CRAWLIFY_OP_TIMEOUT",
+        "CRAWLIFY_HEADLESS",
+        "CRAWLIFY_BROWSER",
+        "CRAWLIFY_POOL_SIZE",
+        "CRAWLIFY_MAX_RETRIES",
+        "CRAWLIFY_RETRY_DELAY",
+        "CRAWLIFY_RECORDING_DIR",
+        "CRAWLIFY_AUTO_SAVE",
+        "CRAWLIFY_WAIT_NETWORK",
+        "CRAWLIFY_SCREENSHOTS",
     ]
     
     with patch.dict(os.environ, {}, clear=True):
@@ -112,7 +112,7 @@ def test_config_from_env_defaults():
         assert config.headless is True
 
 
-@patch.dict(os.environ, {"CRAWILFY_NAV_TIMEOUT": "45.0"})
+@patch.dict(os.environ, {"CRAWLIFY_NAV_TIMEOUT": "45.0"})
 def test_config_from_env_nav_timeout():
     """Test navigation timeout from env."""
     config = MCPServerConfig.from_env()
@@ -120,7 +120,7 @@ def test_config_from_env_nav_timeout():
     assert config.navigation_timeout == 45.0
 
 
-@patch.dict(os.environ, {"CRAWILFY_REQ_TIMEOUT": "20.0"})
+@patch.dict(os.environ, {"CRAWLIFY_REQ_TIMEOUT": "20.0"})
 def test_config_from_env_req_timeout():
     """Test request timeout from env."""
     config = MCPServerConfig.from_env()
@@ -128,7 +128,7 @@ def test_config_from_env_req_timeout():
     assert config.request_timeout == 20.0
 
 
-@patch.dict(os.environ, {"CRAWILFY_OP_TIMEOUT": "90.0"})
+@patch.dict(os.environ, {"CRAWLIFY_OP_TIMEOUT": "90.0"})
 def test_config_from_env_op_timeout():
     """Test operation timeout from env."""
     config = MCPServerConfig.from_env()
@@ -136,7 +136,7 @@ def test_config_from_env_op_timeout():
     assert config.operation_timeout == 90.0
 
 
-@patch.dict(os.environ, {"CRAWILFY_HEADLESS": "false"})
+@patch.dict(os.environ, {"CRAWLIFY_HEADLESS": "false"})
 def test_config_from_env_headless_false():
     """Test headless=false from env."""
     config = MCPServerConfig.from_env()
@@ -144,7 +144,7 @@ def test_config_from_env_headless_false():
     assert config.headless is False
 
 
-@patch.dict(os.environ, {"CRAWILFY_HEADLESS": "true"})
+@patch.dict(os.environ, {"CRAWLIFY_HEADLESS": "true"})
 def test_config_from_env_headless_true():
     """Test headless=true from env."""
     config = MCPServerConfig.from_env()
@@ -152,7 +152,7 @@ def test_config_from_env_headless_true():
     assert config.headless is True
 
 
-@patch.dict(os.environ, {"CRAWILFY_BROWSER": "firefox"})
+@patch.dict(os.environ, {"CRAWLIFY_BROWSER": "firefox"})
 def test_config_from_env_browser():
     """Test browser type from env."""
     config = MCPServerConfig.from_env()
@@ -160,7 +160,7 @@ def test_config_from_env_browser():
     assert config.browser_type == "firefox"
 
 
-@patch.dict(os.environ, {"CRAWILFY_POOL_SIZE": "10"})
+@patch.dict(os.environ, {"CRAWLIFY_POOL_SIZE": "10"})
 def test_config_from_env_pool_size():
     """Test pool size from env."""
     config = MCPServerConfig.from_env()
@@ -168,7 +168,7 @@ def test_config_from_env_pool_size():
     assert config.max_browser_pool_size == 10
 
 
-@patch.dict(os.environ, {"CRAWILFY_MAX_RETRIES": "5"})
+@patch.dict(os.environ, {"CRAWLIFY_MAX_RETRIES": "5"})
 def test_config_from_env_max_retries():
     """Test max retries from env."""
     config = MCPServerConfig.from_env()
@@ -176,7 +176,7 @@ def test_config_from_env_max_retries():
     assert config.max_retries == 5
 
 
-@patch.dict(os.environ, {"CRAWILFY_RETRY_DELAY": "2.5"})
+@patch.dict(os.environ, {"CRAWLIFY_RETRY_DELAY": "2.5"})
 def test_config_from_env_retry_delay():
     """Test retry delay from env."""
     config = MCPServerConfig.from_env()
@@ -184,7 +184,7 @@ def test_config_from_env_retry_delay():
     assert config.retry_delay == 2.5
 
 
-@patch.dict(os.environ, {"CRAWILFY_RECORDING_DIR": "/custom/path"})
+@patch.dict(os.environ, {"CRAWLIFY_RECORDING_DIR": "/custom/path"})
 def test_config_from_env_recording_dir():
     """Test recording directory from env."""
     config = MCPServerConfig.from_env()
@@ -192,7 +192,7 @@ def test_config_from_env_recording_dir():
     assert config.recording_storage_dir == "/custom/path"
 
 
-@patch.dict(os.environ, {"CRAWILFY_AUTO_SAVE": "false"})
+@patch.dict(os.environ, {"CRAWLIFY_AUTO_SAVE": "false"})
 def test_config_from_env_auto_save_false():
     """Test auto save disabled from env."""
     config = MCPServerConfig.from_env()
@@ -200,7 +200,7 @@ def test_config_from_env_auto_save_false():
     assert config.auto_save_recordings is False
 
 
-@patch.dict(os.environ, {"CRAWILFY_AUTO_SAVE": "true"})
+@patch.dict(os.environ, {"CRAWLIFY_AUTO_SAVE": "true"})
 def test_config_from_env_auto_save_true():
     """Test auto save enabled from env."""
     config = MCPServerConfig.from_env()
@@ -208,7 +208,7 @@ def test_config_from_env_auto_save_true():
     assert config.auto_save_recordings is True
 
 
-@patch.dict(os.environ, {"CRAWILFY_WAIT_NETWORK": "false"})
+@patch.dict(os.environ, {"CRAWLIFY_WAIT_NETWORK": "false"})
 def test_config_from_env_wait_network_false():
     """Test wait for network idle disabled from env."""
     config = MCPServerConfig.from_env()
@@ -216,7 +216,7 @@ def test_config_from_env_wait_network_false():
     assert config.wait_for_network_idle is False
 
 
-@patch.dict(os.environ, {"CRAWILFY_SCREENSHOTS": "true"})
+@patch.dict(os.environ, {"CRAWLIFY_SCREENSHOTS": "true"})
 def test_config_from_env_screenshots_true():
     """Test screenshot capture enabled from env."""
     config = MCPServerConfig.from_env()
@@ -225,14 +225,14 @@ def test_config_from_env_screenshots_true():
 
 
 @patch.dict(os.environ, {
-    "CRAWILFY_NAV_TIMEOUT": "60.0",
-    "CRAWILFY_REQ_TIMEOUT": "45.0",
-    "CRAWILFY_OP_TIMEOUT": "120.0",
-    "CRAWILFY_HEADLESS": "false",
-    "CRAWILFY_BROWSER": "webkit",
-    "CRAWILFY_POOL_SIZE": "8",
-    "CRAWILFY_MAX_RETRIES": "4",
-    "CRAWILFY_RETRY_DELAY": "1.5",
+    "CRAWLIFY_NAV_TIMEOUT": "60.0",
+    "CRAWLIFY_REQ_TIMEOUT": "45.0",
+    "CRAWLIFY_OP_TIMEOUT": "120.0",
+    "CRAWLIFY_HEADLESS": "false",
+    "CRAWLIFY_BROWSER": "webkit",
+    "CRAWLIFY_POOL_SIZE": "8",
+    "CRAWLIFY_MAX_RETRIES": "4",
+    "CRAWLIFY_RETRY_DELAY": "1.5",
 })
 def test_config_from_env_multiple():
     """Test multiple env vars at once."""
@@ -283,7 +283,7 @@ def test_config_immutability():
     assert config.navigation_timeout == 100.0
 
 
-@patch.dict(os.environ, {"CRAWILFY_HEADLESS": "TRUE"})
+@patch.dict(os.environ, {"CRAWLIFY_HEADLESS": "TRUE"})
 def test_config_case_insensitive_bool():
     """Test boolean parsing is case-insensitive."""
     config = MCPServerConfig.from_env()
@@ -292,11 +292,10 @@ def test_config_case_insensitive_bool():
     assert config.headless is True
 
 
-@patch.dict(os.environ, {"CRAWILFY_HEADLESS": "False"})
+@patch.dict(os.environ, {"CRAWLIFY_HEADLESS": "False"})
 def test_config_case_insensitive_bool_false():
     """Test false boolean parsing is case-insensitive."""
     config = MCPServerConfig.from_env()
     
     # Should handle mixed case False
     assert config.headless is False
-

@@ -1,4 +1,4 @@
-"""CLI interface for Crawilfy."""
+"""CLI interface for Crawlify."""
 
 
 

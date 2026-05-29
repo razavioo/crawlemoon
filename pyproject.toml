@@ -3,7 +3,7 @@ requires = ["setuptools>=65.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "crawilfy-mcp-server"
+name = "crawlify-mcp-server"
 version = "1.1.5"
 description = "Advanced Web Crawling Platform with Deep Analysis and MCP Server"
 readme = "README.md"
@@ -84,12 +84,12 @@ dev = [
     "twine>=4.0.0",
 ]
 all = [
-    "crawilfy-mcp-server[captcha,ocr,dev]",
+    "crawlify-mcp-server[captcha,ocr,dev]",
 ]
 
 [project.scripts]
 crawl = "src.cli.main:main"
-crawilfy-mcp-server = "src.mcp.server:main_sync"
+crawlify-mcp-server = "src.mcp.server:main_sync"
 
 [tool.black]
 line-length = 100

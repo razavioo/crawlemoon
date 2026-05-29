@@ -3,15 +3,14 @@
 import asyncio
 import logging
 import random
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import List, Optional, Dict, Any
 from enum import Enum
-from datetime import datetime, timedelta
+from datetime import datetime
 from urllib.parse import urlparse
 
 import httpx
 
-from ...exceptions import NoHealthyProxyError, ProxyTestError
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +45,8 @@ class Proxy:
     success_count: int = 0
     last_used: Optional[datetime] = None
     usage_count: int = 0
+    is_xray: bool = False
+    xray_port: Optional[int] = None
     
     def to_playwright_config(self) -> Dict[str, Any]:
         """Convert to Playwright proxy configuration."""
@@ -81,6 +82,7 @@ class Proxy:
             logger.warning(f"Proxy {self.url} marked as unhealthy after {self.failure_count} failures")
 
 
+
 class ProxyPool:
     """Manages a pool of proxies with rotation and health checking."""
     
@@ -90,17 +92,33 @@ class ProxyPool:
         rotation_strategy: RotationStrategy = RotationStrategy.ROUND_ROBIN,
         health_check_interval: int = 300,  # 5 minutes
         health_check_timeout: float = 5.0,
+        xray_manager: Optional[Any] = None,
     ):
         self.proxies: List[Proxy] = []
         self.rotation_strategy = rotation_strategy
         self.health_check_interval = health_check_interval
         self.health_check_timeout = health_check_timeout
+        self.xray_manager = xray_manager
         self._current_index = 0
         self._domain_proxy_map: Dict[str, Proxy] = {}  # For sticky strategy
         self._lock = asyncio.Lock()
         
         if proxies:
             self.add_proxies(proxies)
+            
+    def add_xray_proxy(self, port: int) -> Proxy:
+        """Add a dynamic local Xray proxy to the pool."""
+        proxy_url = f"socks5://127.0.0.1:{port}"
+        proxy = Proxy(
+            url=proxy_url,
+            proxy_type=ProxyType.SOCKS5,
+            is_xray=True,
+            xray_port=port
+        )
+        self.proxies.append(proxy)
+        logger.info(f"Registered dynamic Xray proxy: {proxy_url} on port {port}")
+        return proxy
+
     
     def add_proxies(self, proxy_urls: List[str]) -> None:
         """Add proxies to the pool."""
@@ -228,11 +246,27 @@ class ProxyPool:
                     proxy.mark_success()
                     return True
                 else:
+                    if proxy.is_xray and self.xray_manager and proxy.xray_port:
+                        logger.warning(f"Xray Proxy on port {proxy.xray_port} failed health check. Rotating node...")
+                        try:
+                            self.xray_manager.rotate_node(proxy.xray_port)
+                            proxy.mark_success()  # Re-enable after rotation
+                            return True
+                        except Exception as rotate_err:
+                            logger.error(f"Failed to auto-rotate Xray proxy on port {proxy.xray_port}: {rotate_err}")
                     proxy.mark_failure()
                     return False
         
         except (httpx.RequestError, httpx.HTTPStatusError, OSError) as exc:
             logger.debug("Health check failed for %s: %s", proxy.url, exc)
+            if proxy.is_xray and self.xray_manager and proxy.xray_port:
+                logger.warning(f"Xray Proxy on port {proxy.xray_port} failed health check: {exc}. Rotating node...")
+                try:
+                    self.xray_manager.rotate_node(proxy.xray_port)
+                    proxy.mark_success()  # Re-enable after rotation
+                    return True
+                except Exception as rotate_err:
+                    logger.error(f"Failed to auto-rotate Xray proxy on port {proxy.xray_port}: {rotate_err}")
             proxy.mark_failure()
             return False
     
