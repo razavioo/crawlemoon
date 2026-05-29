@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "crawlemoon"
-version = "1.1.6"
+version = "1.1.7"
 description = "Advanced Web Crawling Platform with Deep Analysis and MCP Server"
 readme = "README.md"
 requires-python = ">=3.10"

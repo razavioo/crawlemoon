@@ -1,6 +1,6 @@
 """Crawlemoon - Advanced Web Crawling Platform."""
 
-__version__ = "1.1.5"
+__version__ = "1.1.7"
 
 # Re-export the exception hierarchy so callers can use ``from src import CrawlemoonError``
 from .exceptions import (  # noqa: F401
