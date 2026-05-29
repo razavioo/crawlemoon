@@ -1,4 +1,4 @@
-"""Xray/V2ray Core Integration for Crawlify.
+"""Xray/V2ray Core Integration for Crawlemoon.
 
 Manages downloading the binary, parsing subscription URIs (VLESS, VMess, Trojan, Shadowsocks),
 generating standard Xray client JSON configs, running subprocess clients on dynamic ports,
@@ -665,7 +665,7 @@ def _cleanup_all_xray_processes():
 atexit.register(_cleanup_all_xray_processes)
 
 
-class CrawlifyV2rayManager:
+class CrawlemoonV2rayManager:
     """Global manager orchestrating multiple dynamic Xray configurations and pool routers."""
 
     def __init__(self, subscription_url: Optional[str] = None):
@@ -742,7 +742,7 @@ class CrawlifyV2rayManager:
 
     def rotate_node(self, port: int) -> str:
         """Forcefully restarts Xray port backend onto the next healthy subscription node."""
-        logger.info("[Crawlify V2ray] Dynamic Rotation Triggered for SOCKS port %d...", port)
+        logger.info("[Crawlemoon V2ray] Dynamic Rotation Triggered for SOCKS port %d...", port)
         if port not in self.runners:
             raise KeyError(f"No runner found active on port {port}")
 

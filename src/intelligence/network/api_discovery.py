@@ -189,7 +189,7 @@ class APIDiscoveryEngine:
                 "info": {
                     "title": title,
                     "version": "1.0.0",
-                    "description": "API discovered by Crawlify"
+                    "description": "API discovered by Crawlemoon"
                 },
                 "paths": {}
             }
@@ -277,7 +277,7 @@ class APIDiscoveryEngine:
             "info": {
                 "title": title,
                 "version": "1.0.0",
-                "description": f"API discovered by Crawlify. Base URL: {most_common_base}"
+                "description": f"API discovered by Crawlemoon. Base URL: {most_common_base}"
             },
             "servers": [
                 {

@@ -1,4 +1,4 @@
-"""Advanced and comprehensive test suite for Crawlify's Premium V2ray/Xray Engine & Stealth Features.
+"""Advanced and comprehensive test suite for Crawlemoon's Premium V2ray/Xray Engine & Stealth Features.
 
 Verifies:
 1. Double inbounds (SOCKS5 + HTTP) config correctness.
@@ -24,7 +24,7 @@ from src.core.browser.xray import (
     XrayNode,
     XrayConfigGenerator,
     XrayRunner,
-    CrawlifyV2rayManager,
+    CrawlemoonV2rayManager,
     is_port_in_use,
     _active_managers,
     _cleanup_all_xray_processes
@@ -160,11 +160,11 @@ def test_log_redirection_avoids_buffer_freeze(mock_port_check, mock_file_open, m
 # ============================================================================
 
 def test_atexit_manager_teardown_registration():
-    """Asserts that all spawned CrawlifyV2rayManagers register in global list for crash safety."""
+    """Asserts that all spawned CrawlemoonV2rayManagers register in global list for crash safety."""
     initial_count = len(_active_managers)
     
     # Spawn manager
-    manager = CrawlifyV2rayManager()
+    manager = CrawlemoonV2rayManager()
     
     # Registered in active list
     assert len(_active_managers) == initial_count + 1

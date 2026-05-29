@@ -3,8 +3,8 @@ requires = ["setuptools>=65.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "crawlify"
-version = "1.1.5"
+name = "crawlemoon"
+version = "1.1.6"
 description = "Advanced Web Crawling Platform with Deep Analysis and MCP Server"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -84,13 +84,13 @@ dev = [
     "twine>=4.0.0",
 ]
 all = [
-    "crawlify[captcha,ocr,dev]",
+    "crawlemoon[captcha,ocr,dev]",
 ]
 
 [project.scripts]
 crawl = "src.cli.main:main"
-crawlify = "src.mcp.server:main_sync"
-crawlify-mcp-server = "src.mcp.server:main_sync"
+crawlemoon = "src.mcp.server:main_sync"
+crawlemoon-mcp-server = "src.mcp.server:main_sync"
 
 [tool.black]
 line-length = 100

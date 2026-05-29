@@ -1,4 +1,4 @@
-"""CLI interface for Crawlify."""
+"""CLI interface for Crawlemoon."""
 
 
 

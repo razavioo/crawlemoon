@@ -12,7 +12,7 @@ async def test_server_initialization():
     from src.mcp.server import server
     
     assert server is not None
-    assert server.name == "crawlify-mcp-server"
+    assert server.name == "crawlemoon-mcp-server"
 
 
 @pytest.mark.integration

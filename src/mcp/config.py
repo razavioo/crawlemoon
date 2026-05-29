@@ -36,24 +36,24 @@ class MCPServerConfig:
     - Ollama (local) - Completely free, runs on your machine
     
     Set these environment variables:
-        CRAWLIFY_LLM_API_KEY - Your API key for the provider
-        CRAWLIFY_LLM_BASE_URL - API base URL (or use CRAWLIFY_LLM_PROVIDER shortcut)
-        CRAWLIFY_LLM_PROVIDER - Shortcut: "openrouter", "groq", "together", "ollama", etc.
-        CRAWLIFY_LLM_MODEL - Model name (default: depends on provider)
+        CRAWLEMOON_LLM_API_KEY - Your API key for the provider
+        CRAWLEMOON_LLM_BASE_URL - API base URL (or use CRAWLEMOON_LLM_PROVIDER shortcut)
+        CRAWLEMOON_LLM_PROVIDER - Shortcut: "openrouter", "groq", "together", "ollama", etc.
+        CRAWLEMOON_LLM_MODEL - Model name (default: depends on provider)
     
     Example for OpenRouter (many free models):
-        CRAWLIFY_LLM_PROVIDER=openrouter
-        CRAWLIFY_LLM_API_KEY=sk-or-v1-xxx
-        CRAWLIFY_LLM_MODEL=meta-llama/llama-3.2-3b-instruct:free
+        CRAWLEMOON_LLM_PROVIDER=openrouter
+        CRAWLEMOON_LLM_API_KEY=sk-or-v1-xxx
+        CRAWLEMOON_LLM_MODEL=meta-llama/llama-3.2-3b-instruct:free
     
     Example for Groq (free tier):
-        CRAWLIFY_LLM_PROVIDER=groq
-        CRAWLIFY_LLM_API_KEY=gsk_xxx
-        CRAWLIFY_LLM_MODEL=llama-3.1-8b-instant
+        CRAWLEMOON_LLM_PROVIDER=groq
+        CRAWLEMOON_LLM_API_KEY=gsk_xxx
+        CRAWLEMOON_LLM_MODEL=llama-3.1-8b-instant
     
     Example for local Ollama (completely free):
-        CRAWLIFY_LLM_PROVIDER=ollama
-        CRAWLIFY_LLM_MODEL=llama3.2
+        CRAWLEMOON_LLM_PROVIDER=ollama
+        CRAWLEMOON_LLM_MODEL=llama3.2
         # No API key needed for local Ollama
     """
     
@@ -87,7 +87,7 @@ class MCPServerConfig:
     llm_provider: Optional[str] = None  # Shortcut for common providers
 
     # Security: dangerous tool gating
-    # When set, MCP clients must present this key (env CRAWLIFY_API_KEY) to invoke tools.
+    # When set, MCP clients must present this key (env CRAWLEMOON_API_KEY) to invoke tools.
     api_key: Optional[str] = None
     # Allow execute_js / execute_cdp / deobfuscate_js. Off by default; opt in explicitly.
     allow_dangerous_js: bool = False
@@ -99,15 +99,15 @@ class MCPServerConfig:
     def from_env(cls) -> "MCPServerConfig":
         """Create config from environment variables."""
         # Determine LLM base URL from provider shortcut or explicit URL
-        llm_provider = os.getenv("CRAWLIFY_LLM_PROVIDER", "").lower()
-        llm_base_url = os.getenv("CRAWLIFY_LLM_BASE_URL")
+        llm_provider = os.getenv("CRAWLEMOON_LLM_PROVIDER", "").lower()
+        llm_base_url = os.getenv("CRAWLEMOON_LLM_BASE_URL")
         
         if not llm_base_url and llm_provider:
             llm_base_url = OPENAI_COMPATIBLE_PROVIDERS.get(llm_provider)
         
         # Get API key (check multiple env vars for compatibility)
         llm_api_key = (
-            os.getenv("CRAWLIFY_LLM_API_KEY") or
+            os.getenv("CRAWLEMOON_LLM_API_KEY") or
             os.getenv("OPENAI_API_KEY") or
             os.getenv("OPENROUTER_API_KEY") or
             os.getenv("GROQ_API_KEY") or
@@ -123,29 +123,29 @@ class MCPServerConfig:
             "deepseek": "deepseek-chat",
         }
         
-        llm_model = os.getenv("CRAWLIFY_LLM_MODEL")
+        llm_model = os.getenv("CRAWLEMOON_LLM_MODEL")
         if not llm_model:
             llm_model = default_models.get(llm_provider, "gpt-4o-mini")
         
         return cls(
-            navigation_timeout=float(os.getenv("CRAWLIFY_NAV_TIMEOUT", "30.0")),
-            request_timeout=float(os.getenv("CRAWLIFY_REQ_TIMEOUT", "30.0")),
-            operation_timeout=float(os.getenv("CRAWLIFY_OP_TIMEOUT", "60.0")),
-            headless=os.getenv("CRAWLIFY_HEADLESS", "true").lower() == "true",
-            browser_type=os.getenv("CRAWLIFY_BROWSER", "chromium"),
-            max_browser_pool_size=int(os.getenv("CRAWLIFY_POOL_SIZE", "5")),
-            max_retries=int(os.getenv("CRAWLIFY_MAX_RETRIES", "3")),
-            retry_delay=float(os.getenv("CRAWLIFY_RETRY_DELAY", "1.0")),
-            recording_storage_dir=os.getenv("CRAWLIFY_RECORDING_DIR"),
-            auto_save_recordings=os.getenv("CRAWLIFY_AUTO_SAVE", "true").lower() == "true",
-            wait_for_network_idle=os.getenv("CRAWLIFY_WAIT_NETWORK", "true").lower() == "true",
-            capture_screenshots=os.getenv("CRAWLIFY_SCREENSHOTS", "false").lower() == "true",
+            navigation_timeout=float(os.getenv("CRAWLEMOON_NAV_TIMEOUT", "30.0")),
+            request_timeout=float(os.getenv("CRAWLEMOON_REQ_TIMEOUT", "30.0")),
+            operation_timeout=float(os.getenv("CRAWLEMOON_OP_TIMEOUT", "60.0")),
+            headless=os.getenv("CRAWLEMOON_HEADLESS", "true").lower() == "true",
+            browser_type=os.getenv("CRAWLEMOON_BROWSER", "chromium"),
+            max_browser_pool_size=int(os.getenv("CRAWLEMOON_POOL_SIZE", "5")),
+            max_retries=int(os.getenv("CRAWLEMOON_MAX_RETRIES", "3")),
+            retry_delay=float(os.getenv("CRAWLEMOON_RETRY_DELAY", "1.0")),
+            recording_storage_dir=os.getenv("CRAWLEMOON_RECORDING_DIR"),
+            auto_save_recordings=os.getenv("CRAWLEMOON_AUTO_SAVE", "true").lower() == "true",
+            wait_for_network_idle=os.getenv("CRAWLEMOON_WAIT_NETWORK", "true").lower() == "true",
+            capture_screenshots=os.getenv("CRAWLEMOON_SCREENSHOTS", "false").lower() == "true",
             llm_api_key=llm_api_key,
             llm_base_url=llm_base_url,
             llm_model=llm_model,
             llm_provider=llm_provider or None,
-            api_key=os.getenv("CRAWLIFY_API_KEY") or None,
-            allow_dangerous_js=os.getenv("CRAWLIFY_ALLOW_DANGEROUS_JS", "false").lower() == "true",
-            js_max_length=int(os.getenv("CRAWLIFY_JS_MAX_LENGTH", "50000")),
-            js_exec_timeout=float(os.getenv("CRAWLIFY_JS_EXEC_TIMEOUT", "10.0")),
+            api_key=os.getenv("CRAWLEMOON_API_KEY") or None,
+            allow_dangerous_js=os.getenv("CRAWLEMOON_ALLOW_DANGEROUS_JS", "false").lower() == "true",
+            js_max_length=int(os.getenv("CRAWLEMOON_JS_MAX_LENGTH", "50000")),
+            js_exec_timeout=float(os.getenv("CRAWLEMOON_JS_EXEC_TIMEOUT", "10.0")),
         )

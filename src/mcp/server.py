@@ -1,4 +1,4 @@
-"""MCP Server implementation for Crawlify - Enhanced and Production-Ready."""
+"""MCP Server implementation for Crawlemoon - Enhanced and Production-Ready."""
 
 import asyncio
 import logging
@@ -14,7 +14,7 @@ from mcp.types import Tool, TextContent
 from ..core.browser.pool import BrowserPool
 from ..core.browser.stealth import create_stealth_context, apply_stealth_to_page
 from ..core.browser.proxy_pool import ProxyPool, RotationStrategy
-from ..core.browser.xray import CrawlifyV2rayManager
+from ..core.browser.xray import CrawlemoonV2rayManager
 from ..core.browser.cdp import CDPClient
 from ..core.rate_limiter import RateLimiter
 from ..core.recording_storage import RecordingStorage
@@ -56,11 +56,11 @@ config = MCPServerConfig.from_env()
 
 # Initialize proxy pool if configured
 _proxy_pool = None
-proxy_list = os.getenv("CRAWLIFY_PROXIES")
+proxy_list = os.getenv("CRAWLEMOON_PROXIES")
 if proxy_list:
     proxy_urls = [p.strip() for p in proxy_list.split(",") if p.strip()]
     if proxy_urls:
-        rotation_strategy = os.getenv("CRAWLIFY_PROXY_ROTATION", "round_robin")
+        rotation_strategy = os.getenv("CRAWLEMOON_PROXY_ROTATION", "round_robin")
         try:
             strategy = RotationStrategy(rotation_strategy.lower())
         except ValueError:
@@ -103,12 +103,12 @@ rate_limiter = RateLimiter()
 cache_manager = CacheManager(max_size=1000, default_ttl_seconds=3600)
 
 # Configure rate limiter from environment
-default_rps = float(os.getenv("CRAWLIFY_RATE_LIMIT_RPS", "1.0"))
+default_rps = float(os.getenv("CRAWLEMOON_RATE_LIMIT_RPS", "1.0"))
 rate_limiter.set_default_rate_limit(requests_per_second=default_rps)
 
 # Initialize session manager
-session_storage_dir = os.getenv("CRAWLIFY_SESSION_DIR", ".sessions")
-user_data_dir = os.getenv("CRAWLIFY_USER_DATA_DIR")
+session_storage_dir = os.getenv("CRAWLEMOON_SESSION_DIR", ".sessions")
+user_data_dir = os.getenv("CRAWLEMOON_USER_DATA_DIR")
 session_manager = SessionManager(
     storage_path=session_storage_dir,
     user_data_dir=user_data_dir,
@@ -124,7 +124,7 @@ async def init_browser_pool():
     logger.info("Browser pool initialized")
 
 # MCP Server
-server = Server("crawlify-mcp-server")
+server = Server("crawlemoon-mcp-server")
 
 
 @asynccontextmanager
@@ -1352,7 +1352,7 @@ async def get_tool_schema_map() -> Dict[str, Any]:
 async def call_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
     """Handle tool calls with comprehensive error handling.
 
-    Auth: when ``CRAWLIFY_API_KEY`` is set in the environment, every call must
+    Auth: when ``CRAWLEMOON_API_KEY`` is set in the environment, every call must
     carry a matching ``_api_key`` argument. Useful when the server is exposed
     over a non-stdio transport.
     """
@@ -2770,8 +2770,8 @@ async def handle_structured_extract(arguments: Dict[str, Any]) -> Dict[str, Any]
     if not smart_extractor.llm_enabled or not smart_extractor.client:
         return {
             "error": (
-                "LLM extraction is not configured. Please set the CRAWLIFY_LLM_PROVIDER "
-                "and CRAWLIFY_LLM_API_KEY environment variables to use structured_extract. "
+                "LLM extraction is not configured. Please set the CRAWLEMOON_LLM_PROVIDER "
+                "and CRAWLEMOON_LLM_API_KEY environment variables to use structured_extract. "
                 "Supported providers include openrouter, groq, together, ollama (local), or openai."
             )
         }
@@ -3144,7 +3144,7 @@ async def handle_configure_xray_subscription(arguments: Dict[str, Any]) -> Dict[
         if _xray_manager:
             _xray_manager.stop_all()
             
-        _xray_manager = CrawlifyV2rayManager(subscription_url=subscription_url)
+        _xray_manager = CrawlemoonV2rayManager(subscription_url=subscription_url)
         _xray_manager.initialize()
         
         num_loaded = 0
@@ -3389,7 +3389,7 @@ async def handle_execute_graphql(arguments: Dict[str, Any]) -> Dict[str, Any]:
 async def handle_execute_js(arguments: Dict[str, Any]) -> Dict[str, Any]:
     """Handle execute_js tool.
 
-    Security: refuses to run unless ``CRAWLIFY_ALLOW_DANGEROUS_JS=true``.
+    Security: refuses to run unless ``CRAWLEMOON_ALLOW_DANGEROUS_JS=true``.
     Enforces a length cap and per-script timeout (see :class:`MCPServerConfig`).
     """
     url = arguments["url"]
@@ -3579,7 +3579,7 @@ async def handle_export_recording(arguments: Dict[str, Any]) -> Dict[str, Any]:
             output = {
                 "log": {
                     "version": "1.2",
-                    "creator": {"name": "Crawlify", "version": "1.0"},
+                    "creator": {"name": "Crawlemoon", "version": "1.0"},
                     "entries": [
                         {
                             "request": {
@@ -3897,7 +3897,7 @@ async def handle_extract_tables(arguments: Dict[str, Any]) -> Dict[str, Any]:
 async def handle_execute_cdp(arguments: Dict[str, Any]) -> Dict[str, Any]:
     """Handle execute_cdp tool.
 
-    Security: refuses to run unless ``CRAWLIFY_ALLOW_DANGEROUS_JS=true`` because
+    Security: refuses to run unless ``CRAWLEMOON_ALLOW_DANGEROUS_JS=true`` because
     CDP exposes Runtime.evaluate, Page.addScriptToEvaluateOnNewDocument, etc.
     """
     url = arguments["url"]
@@ -3906,7 +3906,7 @@ async def handle_execute_cdp(arguments: Dict[str, Any]) -> Dict[str, Any]:
 
     if not config.allow_dangerous_js:
         raise ValidationError(
-            "execute_cdp is disabled. Set CRAWLIFY_ALLOW_DANGEROUS_JS=true to enable."
+            "execute_cdp is disabled. Set CRAWLEMOON_ALLOW_DANGEROUS_JS=true to enable."
         )
     if not isinstance(method, str) or not method:
         raise ValidationError("'method' must be a non-empty CDP method name")

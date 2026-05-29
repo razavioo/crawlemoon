@@ -1,4 +1,4 @@
-"""MCP Server for Crawlify."""
+"""MCP Server for Crawlemoon."""
 
 
 

@@ -303,7 +303,7 @@ class SessionRecorder:
             "log": {
                 "version": "1.2",
                 "creator": {
-                    "name": "Crawlify",
+                    "name": "Crawlemoon",
                     "version": "1.0"
                 },
                 "pages": [],

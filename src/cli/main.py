@@ -274,7 +274,7 @@ async def run_crawler(crawler_file: str, stealth: bool = False):
 
 def main():
     """Main CLI entry point."""
-    parser = argparse.ArgumentParser(description="Crawlify - Advanced Web Crawling Platform")
+    parser = argparse.ArgumentParser(description="Crawlemoon - Advanced Web Crawling Platform")
     
     subparsers = parser.add_subparsers(dest="command", help="Command to execute")
     

@@ -1,4 +1,4 @@
-"""Setup script for crawlify-mcp-server."""
+"""Setup script for crawlemoon-mcp-server."""
 
 from setuptools import setup
 

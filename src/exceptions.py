@@ -1,6 +1,6 @@
-"""Custom exception hierarchy for Crawlify MCP Server.
+"""Custom exception hierarchy for Crawlemoon MCP Server.
 
-All application-specific exceptions derive from CrawlifyError, allowing
+All application-specific exceptions derive from CrawlemoonError, allowing
 callers to catch the entire family with a single except clause while still
 being able to target narrower sub-types when needed.
 """
@@ -10,15 +10,15 @@ being able to target narrower sub-types when needed.
 # Base
 # ---------------------------------------------------------------------------
 
-class CrawlifyError(Exception):
-    """Root exception for all Crawlify errors."""
+class CrawlemoonError(Exception):
+    """Root exception for all Crawlemoon errors."""
 
 
 # ---------------------------------------------------------------------------
 # Browser / Pool
 # ---------------------------------------------------------------------------
 
-class BrowserError(CrawlifyError):
+class BrowserError(CrawlemoonError):
     """Base class for browser-related errors."""
 
 
@@ -46,7 +46,7 @@ class PageInteractionError(BrowserError):
 # Proxy
 # ---------------------------------------------------------------------------
 
-class ProxyError(CrawlifyError):
+class ProxyError(CrawlemoonError):
     """Base class for proxy-related errors."""
 
 
@@ -62,7 +62,7 @@ class ProxyTestError(ProxyError):
 # Network / HTTP
 # ---------------------------------------------------------------------------
 
-class NetworkError(CrawlifyError):
+class NetworkError(CrawlemoonError):
     """Base class for network-level errors."""
 
 
@@ -86,7 +86,7 @@ class ConnectionPoolError(NetworkError):
 # Cache
 # ---------------------------------------------------------------------------
 
-class CacheError(CrawlifyError):
+class CacheError(CrawlemoonError):
     """Base class for cache-related errors."""
 
 
@@ -102,7 +102,7 @@ class CacheSerializationError(CacheError):
 # Session
 # ---------------------------------------------------------------------------
 
-class SessionError(CrawlifyError):
+class SessionError(CrawlemoonError):
     """Base class for session-related errors."""
 
 
@@ -122,7 +122,7 @@ class SessionStorageError(SessionError):
 # Recording
 # ---------------------------------------------------------------------------
 
-class RecordingError(CrawlifyError):
+class RecordingError(CrawlemoonError):
     """Base class for session-recording errors."""
 
 
@@ -142,7 +142,7 @@ class RecordingExpiredError(RecordingError):
 # Intelligence / Analysis
 # ---------------------------------------------------------------------------
 
-class AnalysisError(CrawlifyError):
+class AnalysisError(CrawlemoonError):
     """Base class for intelligence / analysis errors."""
 
 
@@ -182,7 +182,7 @@ class ContentExtractionError(AnalysisError):
 # Crawler generation
 # ---------------------------------------------------------------------------
 
-class CrawlerGenerationError(CrawlifyError):
+class CrawlerGenerationError(CrawlemoonError):
     """Crawler code or YAML could not be generated."""
 
 
@@ -190,11 +190,11 @@ class CrawlerGenerationError(CrawlifyError):
 # Configuration / Validation
 # ---------------------------------------------------------------------------
 
-class ConfigurationError(CrawlifyError):
+class ConfigurationError(CrawlemoonError):
     """The server configuration is invalid or incomplete."""
 
 
-class ValidationError(CrawlifyError):
+class ValidationError(CrawlemoonError):
     """A tool argument or user-supplied value failed validation."""
 
 

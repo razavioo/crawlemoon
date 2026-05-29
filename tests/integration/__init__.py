@@ -1,2 +1,2 @@
-"""Integration tests for Crawlify MCP Server."""
+"""Integration tests for Crawlemoon MCP Server."""
 

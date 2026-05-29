@@ -9,9 +9,9 @@ Optionally supports LLM enhancement via any OpenAI-compatible API:
 - And more...
 
 Configure via environment variables:
-    CRAWLIFY_LLM_PROVIDER=openrouter  # or groq, together, ollama, etc.
-    CRAWLIFY_LLM_API_KEY=your-api-key
-    CRAWLIFY_LLM_MODEL=meta-llama/llama-3.2-3b-instruct:free  # Optional
+    CRAWLEMOON_LLM_PROVIDER=openrouter  # or groq, together, ollama, etc.
+    CRAWLEMOON_LLM_API_KEY=your-api-key
+    CRAWLEMOON_LLM_MODEL=meta-llama/llama-3.2-3b-instruct:free  # Optional
 """
 
 import logging
@@ -72,7 +72,7 @@ class SmartExtractor:
     This extractor works without any paid APIs using pattern matching.
     Optionally supports LLM enhancement via any OpenAI-compatible API:
     
-    Supported providers (via CRAWLIFY_LLM_PROVIDER env var):
+    Supported providers (via CRAWLEMOON_LLM_PROVIDER env var):
     - openrouter: Many free models (meta-llama/llama-3.2-3b-instruct:free)
     - groq: Free tier, very fast (llama-3.1-8b-instant)
     - together: Free tier (meta-llama/Llama-3.2-3B-Instruct-Turbo)
@@ -148,11 +148,11 @@ class SmartExtractor:
         }
         
         # Check environment variables
-        env_provider = os.getenv("CRAWLIFY_LLM_PROVIDER", "").lower()
-        env_base_url = os.getenv("CRAWLIFY_LLM_BASE_URL")
-        env_model = os.getenv("CRAWLIFY_LLM_MODEL")
+        env_provider = os.getenv("CRAWLEMOON_LLM_PROVIDER", "").lower()
+        env_base_url = os.getenv("CRAWLEMOON_LLM_BASE_URL")
+        env_model = os.getenv("CRAWLEMOON_LLM_MODEL")
         env_api_key = (
-            os.getenv("CRAWLIFY_LLM_API_KEY") or
+            os.getenv("CRAWLEMOON_LLM_API_KEY") or
             os.getenv("OPENAI_API_KEY") or
             os.getenv("OPENROUTER_API_KEY") or
             os.getenv("GROQ_API_KEY") or
@@ -495,10 +495,10 @@ def get_smart_extractor(
     LLM enhancement is optional and enabled when configured.
     
     Configuration via environment variables:
-        CRAWLIFY_LLM_PROVIDER - Provider: openrouter, groq, together, ollama, etc.
-        CRAWLIFY_LLM_API_KEY - API key for the provider
-        CRAWLIFY_LLM_BASE_URL - Custom API base URL (optional if using provider)
-        CRAWLIFY_LLM_MODEL - Model name (optional, auto-selected per provider)
+        CRAWLEMOON_LLM_PROVIDER - Provider: openrouter, groq, together, ollama, etc.
+        CRAWLEMOON_LLM_API_KEY - API key for the provider
+        CRAWLEMOON_LLM_BASE_URL - Custom API base URL (optional if using provider)
+        CRAWLEMOON_LLM_MODEL - Model name (optional, auto-selected per provider)
     
     Free/cheap provider recommendations:
         - openrouter: Free models like meta-llama/llama-3.2-3b-instruct:free

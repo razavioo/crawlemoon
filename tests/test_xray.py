@@ -1,4 +1,4 @@
-"""Unit tests for Crawlify V2ray/Xray Core Proxy Engine."""
+"""Unit tests for Crawlemoon V2ray/Xray Core Proxy Engine."""
 
 import os
 import json
@@ -13,7 +13,7 @@ from src.core.browser.xray import (
     XrayNode,
     XrayConfigGenerator,
     XrayRunner,
-    CrawlifyV2rayManager
+    CrawlemoonV2rayManager
 )
 from src.core.browser.proxy_pool import ProxyPool, RotationStrategy, Proxy, ProxyType
 
@@ -178,14 +178,14 @@ def test_xray_runner_lifecycle(mock_popen):
 
 
 def test_manager_loading_raw_links():
-    """Tests that CrawlifyV2rayManager loads nodes list correctly from raw URLs."""
+    """Tests that CrawlemoonV2rayManager loads nodes list correctly from raw URLs."""
     raw_links = [
         "vless://uuid1@1.1.1.1:443#Node1",
         "trojan://pwd2@2.2.2.2:443#Node2",
         "invalid://link"
     ]
     
-    manager = CrawlifyV2rayManager()
+    manager = CrawlemoonV2rayManager()
     num_loaded = manager.load_raw_links(raw_links)
     
     assert num_loaded == 2
@@ -201,7 +201,7 @@ def test_manager_start_port_and_rotation(mock_runner_class):
     mock_runner.start.return_value = True
     mock_runner_class.return_value = mock_runner
     
-    manager = CrawlifyV2rayManager()
+    manager = CrawlemoonV2rayManager()
     manager.binary_path = "/path/to/xray"
     
     manager.nodes = [
@@ -228,7 +228,7 @@ def test_manager_start_port_and_rotation(mock_runner_class):
 
 def test_proxy_pool_integration_and_rotation():
     """Tests that dynamic Xray proxies registered in ProxyPool undergo correct routing/rotation."""
-    manager = CrawlifyV2rayManager()
+    manager = CrawlemoonV2rayManager()
     manager.nodes = [
         XrayNode(protocol="vless", address="1.1.1.1", port=443, raw_url="vless://1", name="Node1", params={}),
         XrayNode(protocol="vless", address="2.2.2.2", port=443, raw_url="vless://2", name="Node2", params={})

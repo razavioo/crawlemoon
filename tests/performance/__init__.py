@@ -1,2 +1,2 @@
-"""Performance tests for Crawlify MCP Server."""
+"""Performance tests for Crawlemoon MCP Server."""
 

@@ -162,8 +162,8 @@ class SessionManager:
         self._encryption_password: Optional[bytes] = None
         if encryption_key:
             self._init_encryption(encryption_key)
-        elif os.getenv("CRAWLIFY_ENCRYPTION_KEY"):
-            self._init_encryption(os.getenv("CRAWLIFY_ENCRYPTION_KEY"))
+        elif os.getenv("CRAWLEMOON_ENCRYPTION_KEY"):
+            self._init_encryption(os.getenv("CRAWLEMOON_ENCRYPTION_KEY"))
         
         # Load persisted sessions
         self._load_from_disk()
