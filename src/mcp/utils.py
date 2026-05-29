@@ -253,7 +253,7 @@ def validate_js_payload(
 
     Raises :class:`ValidationError` on failure. When *allow_dangerous* is
     ``False``, this is a hard refusal regardless of payload content — callers
-    must explicitly opt in (typically via ``CRAWILFY_ALLOW_DANGEROUS_JS``).
+    must explicitly opt in (typically via ``CRAWLEMOON_ALLOW_DANGEROUS_JS``).
     """
     if not isinstance(code, str) or not code.strip():
         raise ValidationError(f"'{field}' must be a non-empty string")
@@ -263,7 +263,7 @@ def validate_js_payload(
         )
     if not allow_dangerous:
         raise ValidationError(
-            "JS execution is disabled. Set CRAWILFY_ALLOW_DANGEROUS_JS=true to "
+            "JS execution is disabled. Set CRAWLEMOON_ALLOW_DANGEROUS_JS=true to "
             "enable execute_js / execute_cdp / deobfuscate_js."
         )
     for pattern in _JS_DENYLIST:

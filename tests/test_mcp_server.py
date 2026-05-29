@@ -197,6 +197,45 @@ async def test_call_tool_validation():
 
 
 @pytest.mark.asyncio
+async def test_static_tool_argument_contracts_reach_handlers():
+    """Tools with non-url primary inputs should not be rejected by Pydantic."""
+    result = await call_tool("deobfuscate_js", {"code": "var x = 1;"})
+    data = json.loads(result[0].text)
+    assert not data.get("error", "").startswith("Invalid arguments")
+    assert "deobfuscated" in data
+
+    result = await call_tool("extract_from_js", {"code": "fetch('/api/users')"})
+    data = json.loads(result[0].text)
+    assert not data.get("error", "").startswith("Invalid arguments")
+    assert "api_calls" in data
+
+    result = await call_tool("clear_cache", {"cache_type": "all"})
+    data = json.loads(result[0].text)
+    assert data["status"] == "cleared"
+
+
+@pytest.mark.asyncio
+async def test_tool_schema_argument_names_match_handlers():
+    """Representative MCP schemas should validate their public argument names."""
+    with patch("src.mcp.server.api_discovery") as mock_discovery:
+        mock_discovery.run_introspection = AsyncMock(return_value=None)
+        result = await call_tool(
+            "introspect_graphql",
+            {"endpoint": "https://example.com/graphql"},
+        )
+        data = json.loads(result[0].text)
+        assert not data.get("error", "").startswith("Invalid arguments")
+
+    result = await call_tool(
+        "export_recording",
+        {"recording_id": "missing-recording", "format": "playwright_test"},
+    )
+    data = json.loads(result[0].text)
+    assert not data.get("error", "").startswith("Invalid arguments")
+    assert "Recording not found" in data.get("error", "")
+
+
+@pytest.mark.asyncio
 async def test_call_tool_timeout():
     """Test tool call timeout handling."""
     arguments = {"url": "https://example.com"}
@@ -325,4 +364,3 @@ async def test_browser_context_manager_cleanup():
             mock_context.close.assert_not_called()
             # Should have applied stealth patches to page
             mock_apply_stealth.assert_called_once_with(mock_context, mock_page)
-

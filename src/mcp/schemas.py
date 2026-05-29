@@ -105,8 +105,13 @@ class DiscoverAPIsArgs(_URLMixin):
 # GraphQL
 # ---------------------------------------------------------------------------
 
-class IntrospectGraphQLArgs(_URLMixin):
-    pass
+class IntrospectGraphQLArgs(BaseModel):
+    endpoint: str = Field(..., description="GraphQL endpoint URL")
+
+    @field_validator("endpoint")
+    @classmethod
+    def validate_endpoint(cls, v: str) -> str:
+        return _validate_url(v)
 
 
 class ExecuteGraphQLArgs(_URLMixin):
@@ -173,13 +178,13 @@ class ConvertToMarkdownArgs(_URLMixin, _DOMFilterMixin):
 
 
 class SmartExtractArgs(_URLMixin, _DOMFilterMixin):
-    instructions: str = Field(..., description="Natural-language extraction instructions")
+    query: str = Field(..., description="Natural-language extraction query")
 
-    @field_validator("instructions")
+    @field_validator("query")
     @classmethod
-    def validate_instructions(cls, v: str) -> str:
+    def validate_query(cls, v: str) -> str:
         if not v.strip():
-            raise ValueError("Extraction instructions must not be empty")
+            raise ValueError("Extraction query must not be empty")
         return v
 
 
@@ -192,8 +197,13 @@ class WaitAndExtractArgs(_URLMixin):
 # Network analysis
 # ---------------------------------------------------------------------------
 
-class AnalyzeSitemapArgs(_URLMixin):
-    pass
+class AnalyzeSitemapArgs(BaseModel):
+    sitemap_url: str = Field(..., description="Sitemap XML URL")
+
+    @field_validator("sitemap_url")
+    @classmethod
+    def validate_sitemap_url(cls, v: str) -> str:
+        return _validate_url(v)
 
 
 class CheckRobotsArgs(_URLMixin):
@@ -233,7 +243,8 @@ class CheckAccessibilityArgs(_URLMixin):
 # ---------------------------------------------------------------------------
 
 class FillFormArgs(_URLMixin):
-    form_data: Dict[str, str] = Field(..., description="Mapping of field selector → value")
+    data: Dict[str, str] = Field(..., description="Mapping of field name/id -> value")
+    form_selector: Optional[str] = Field(None, description="Optional CSS selector for the target form")
     submit: bool = Field(False, description="Submit the form after filling")
 
 
@@ -271,12 +282,26 @@ class ComparePagesArgs(BaseModel):
 # JavaScript analysis
 # ---------------------------------------------------------------------------
 
-class DeobfuscateJSArgs(_URLMixin):
-    pass
+class DeobfuscateJSArgs(BaseModel):
+    code: str = Field(..., description="JavaScript code to deobfuscate")
+
+    @field_validator("code")
+    @classmethod
+    def validate_code(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("JavaScript code must not be empty")
+        return v
 
 
-class ExtractFromJSArgs(_URLMixin):
-    pass
+class ExtractFromJSArgs(BaseModel):
+    code: str = Field(..., description="JavaScript code to analyze")
+
+    @field_validator("code")
+    @classmethod
+    def validate_code(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("JavaScript code must not be empty")
+        return v
 
 
 # ---------------------------------------------------------------------------
@@ -284,8 +309,8 @@ class ExtractFromJSArgs(_URLMixin):
 # ---------------------------------------------------------------------------
 
 class SolveCaptchaArgs(_URLMixin):
-    captcha_type: Optional[Literal["recaptcha", "hcaptcha", "turnstile"]] = Field(
-        None, description="CAPTCHA type; auto-detected when omitted"
+    captcha_type: Optional[Literal["auto", "recaptcha_v2", "recaptcha", "hcaptcha", "turnstile"]] = Field(
+        "auto", description="CAPTCHA type; auto-detected when omitted"
     )
 
 
@@ -382,7 +407,7 @@ class DeleteRecordingArgs(BaseModel):
 
 class ExportRecordingArgs(BaseModel):
     recording_id: str = Field(..., description="ID of the recording to export")
-    format: Literal["json", "har"] = Field("json", description="Export format")
+    format: Literal["json", "har", "playwright_test"] = Field("json", description="Export format")
 
 
 class GenerateCrawlerArgs(BaseModel):
@@ -395,7 +420,7 @@ class GenerateCrawlerArgs(BaseModel):
 # ---------------------------------------------------------------------------
 
 class ExecuteCDPArgs(_URLMixin):
-    command: str = Field(..., description="CDP command name (e.g. 'Network.enable')")
+    method: str = Field(..., description="CDP command name (e.g. 'Network.enable')")
     params: Optional[Dict[str, Any]] = Field(None, description="Optional command parameters")
 
 
@@ -404,8 +429,8 @@ class ExecuteCDPArgs(_URLMixin):
 # ---------------------------------------------------------------------------
 
 class ClearCacheArgs(BaseModel):
-    cache_type: Optional[Literal["page", "response", "state"]] = Field(
-        None, description="Cache to clear; clears all when omitted"
+    cache_type: Optional[Literal["page", "response", "state", "all"]] = Field(
+        "all", description="Cache to clear; clears all when omitted"
     )
 
 
@@ -450,5 +475,3 @@ class RotateXrayNodeArgs(BaseModel):
 class TestXrayNodesArgs(BaseModel):
     test_url: str = Field("http://httpbin.org/ip", description="URL to check latency and connectivity against")
     max_concurrency: int = Field(5, ge=1, le=10, description="Max concurrent benchmark processes to spawn")
-
-

@@ -2181,7 +2181,11 @@ async def handle_save_session(arguments: Dict[str, Any]) -> Dict[str, Any]:
     try:
         if url:
             # Capture live browser state by navigating to the URL
-            async with browser_context_manager(url) as (context, page):
+            context = await create_stealth_context(browser_pool, url=url)
+            page = await context.new_page()
+            page.set_default_timeout(config.navigation_timeout * 1000)
+            await apply_stealth_to_page(context, page)
+            try:
                 await navigate_to_url(page, url)
 
                 # Extract cookies
@@ -2215,6 +2219,11 @@ async def handle_save_session(arguments: Dict[str, Any]) -> Dict[str, Any]:
                     }""")
                 except Exception:
                     pass
+            finally:
+                try:
+                    await page.close()
+                except (PlaywrightError, AttributeError) as exc:
+                    logger.warning("Error closing save_session page: %s", exc)
 
             await session_manager.save_session_state(
                 session_id,
