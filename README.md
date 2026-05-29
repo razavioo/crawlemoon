@@ -123,6 +123,26 @@ make test             # pytest
 make lint             # ruff + mypy
 ```
 
+## Releases
+
+This project uses **Trusted Publishing (OIDC)** via GitHub Actions to automate publishing releases directly to PyPI.
+
+To release a new version:
+
+1. Bump the version number in `pyproject.toml`.
+2. Commit the change and create a git tag matching the version (e.g. `v1.1.7`):
+   ```bash
+   git add pyproject.toml
+   git commit -m "chore: bump version to 1.1.7"
+   git tag v1.1.7
+   ```
+3. Push your branch and the tag to GitHub:
+   ```bash
+   git push origin main --tags
+   ```
+
+GitHub Actions will automatically run tests, build the package, and publish it securely to PyPI under the `crawlemoon` package space.
+
 PRs welcome. Particularly interested in: distributed mode (Redis queue), result sinks (Postgres / S3), Prometheus metrics. See [`MIT License`](LICENSE).
 
 <p align="center"><sub>Made by <a href="https://emad.dev">emad.dev</a></sub></p>
