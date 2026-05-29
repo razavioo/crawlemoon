@@ -3131,6 +3131,8 @@ async def handle_configure_xray_subscription(arguments: Dict[str, Any]) -> Dict[
     raw_links = arguments.get("raw_links")
     num_ports = arguments.get("num_ports", 3)
     start_port = arguments.get("start_port", 10801)
+    auto_benchmark = arguments.get("auto_benchmark", True)
+    test_url = arguments.get("test_url", "http://httpbin.org/ip")
     
     if not subscription_url and not raw_links:
         return {
@@ -3156,6 +3158,19 @@ async def handle_configure_xray_subscription(arguments: Dict[str, Any]) -> Dict[
                 "status": "failed",
                 "message": "No valid nodes were loaded."
             }
+            
+        # Run auto-benchmark on startup if requested to sort the fastest nodes
+        benchmarked_count = 0
+        if auto_benchmark:
+            try:
+                logger.info("Running fast startup auto-benchmark on %d nodes...", num_loaded)
+                # Cap concurrency to 5 for speed/bandwidth safety during startup
+                await _xray_manager.benchmark_all_nodes(test_url=test_url, max_concurrency=5)
+                # Count functional nodes
+                benchmarked_count = len([n for n in _xray_manager.nodes if n.is_healthy and n.latency > 0])
+                logger.info("Startup benchmark complete. Found %d working nodes.", benchmarked_count)
+            except Exception as bench_err:
+                logger.error("Startup auto-benchmark failed: %s. Continuing with raw nodes list.", bench_err)
             
         # Initialize proxy pool if it does not exist
         if not _proxy_pool:
@@ -3191,6 +3206,8 @@ async def handle_configure_xray_subscription(arguments: Dict[str, Any]) -> Dict[
             "status": "success",
             "message": f"Successfully configured Xray proxy pool with {len(active_ports)} active ports.",
             "loaded_nodes_count": num_loaded,
+            "auto_benchmarked": auto_benchmark,
+            "working_nodes_count": benchmarked_count if auto_benchmark else num_loaded,
             "active_ports": active_ports,
             "timestamp": datetime.now().isoformat()
         }

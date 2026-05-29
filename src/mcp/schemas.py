@@ -435,6 +435,8 @@ class ConfigureXraySubscriptionArgs(BaseModel):
     raw_links: Optional[List[str]] = Field(None, description="List of raw protocol links (vmess://, vless://, trojan://, ss://)")
     num_ports: int = Field(3, ge=1, le=20, description="Number of concurrent SOCKS5 ports to run")
     start_port: int = Field(10801, ge=1024, le=65535, description="Starting port number for local SOCKS5 proxy inbounds")
+    auto_benchmark: bool = Field(True, description="Automatically benchmark and sort nodes by speed on startup")
+    test_url: str = Field("http://httpbin.org/ip", description="URL to check latency against during startup benchmark")
 
 
 class GetXrayStatusArgs(BaseModel):

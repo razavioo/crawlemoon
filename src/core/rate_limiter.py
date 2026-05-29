@@ -136,8 +136,11 @@ class RateLimiter:
             if recent >= config.requests_per_second:
                 wait_time = 1.0 - (now - self._global_queue[-1])
                 if wait_time > 0:
-                    logger.debug(f"Global rate limit: waiting {wait_time:.2f}s")
-                    await asyncio.sleep(wait_time)
+                    import random
+                    jitter = random.uniform(0.1, 0.5) * wait_time
+                    total_wait = wait_time + jitter
+                    logger.debug(f"Global rate limit: waiting {total_wait:.2f}s (including {jitter:.2f}s jitter)")
+                    await asyncio.sleep(total_wait)
         
         # Check per-minute limit
         if config.requests_per_minute:
@@ -145,8 +148,11 @@ class RateLimiter:
             if recent >= config.requests_per_minute:
                 wait_time = 60.0 - (now - self._global_queue[-1])
                 if wait_time > 0:
-                    logger.debug(f"Global rate limit (minute): waiting {wait_time:.2f}s")
-                    await asyncio.sleep(wait_time)
+                    import random
+                    jitter = random.uniform(0.1, 0.5) * wait_time
+                    total_wait = wait_time + jitter
+                    logger.debug(f"Global rate limit (minute): waiting {total_wait:.2f}s (including {jitter:.2f}s jitter)")
+                    await asyncio.sleep(total_wait)
         
         # Check per-hour limit
         if config.requests_per_hour:
@@ -154,8 +160,11 @@ class RateLimiter:
             if recent >= config.requests_per_hour:
                 wait_time = 3600.0 - (now - self._global_queue[-1])
                 if wait_time > 0:
-                    logger.warning(f"Global rate limit (hour): waiting {wait_time:.2f}s")
-                    await asyncio.sleep(wait_time)
+                    import random
+                    jitter = random.uniform(0.05, 0.2) * wait_time
+                    total_wait = wait_time + jitter
+                    logger.warning(f"Global rate limit (hour): waiting {total_wait:.2f}s (including {jitter:.2f}s jitter)")
+                    await asyncio.sleep(total_wait)
     
     async def _check_domain_rate_limit(self, domain: str) -> None:
         """Check and enforce domain-specific rate limit."""
@@ -194,8 +203,11 @@ class RateLimiter:
                 oldest_recent = recent[0]
                 wait_time = 1.0 - (now - oldest_recent)
                 if wait_time > 0:
-                    logger.debug(f"Rate limit for {domain}: waiting {wait_time:.2f}s")
-                    await asyncio.sleep(wait_time)
+                    import random
+                    jitter = random.uniform(0.1, 0.5) * wait_time
+                    total_wait = wait_time + jitter
+                    logger.debug(f"Rate limit for {domain}: waiting {total_wait:.2f}s (including {jitter:.2f}s jitter)")
+                    await asyncio.sleep(total_wait)
         
         # Check per-minute limit
         if config.requests_per_minute:
@@ -204,8 +216,11 @@ class RateLimiter:
                 oldest_recent = recent[0]
                 wait_time = 60.0 - (now - oldest_recent)
                 if wait_time > 0:
-                    logger.debug(f"Rate limit (minute) for {domain}: waiting {wait_time:.2f}s")
-                    await asyncio.sleep(wait_time)
+                    import random
+                    jitter = random.uniform(0.1, 0.5) * wait_time
+                    total_wait = wait_time + jitter
+                    logger.debug(f"Rate limit (minute) for {domain}: waiting {total_wait:.2f}s (including {jitter:.2f}s jitter)")
+                    await asyncio.sleep(total_wait)
         
         # Check per-hour limit
         if config.requests_per_hour:
@@ -214,8 +229,11 @@ class RateLimiter:
                 oldest_recent = recent[0]
                 wait_time = 3600.0 - (now - oldest_recent)
                 if wait_time > 0:
-                    logger.warning(f"Rate limit (hour) for {domain}: waiting {wait_time:.2f}s")
-                    await asyncio.sleep(wait_time)
+                    import random
+                    jitter = random.uniform(0.05, 0.2) * wait_time
+                    total_wait = wait_time + jitter
+                    logger.warning(f"Rate limit (hour) for {domain}: waiting {total_wait:.2f}s (including {jitter:.2f}s jitter)")
+                    await asyncio.sleep(total_wait)
     
     def record_response(
         self,
