@@ -24,8 +24,8 @@ async def test_deep_analyze_workflow():
         mock_pool.acquire = AsyncMock(return_value=mock_context)
         
         with patch("src.mcp.server.network_interceptor") as mock_interceptor:
-            mock_interceptor.capture_all_requests.return_value = []
-            mock_interceptor.capture_all_responses.return_value = []
+            mock_interceptor.capture_all_requests = AsyncMock(return_value=[])
+            mock_interceptor.capture_all_responses = AsyncMock(return_value=[])
             mock_interceptor.start_intercepting = AsyncMock()
             mock_interceptor.reset = MagicMock()
             
@@ -50,7 +50,7 @@ async def test_deep_analyze_workflow():
                         })
                         
                         assert "url" in result
-                        assert "network" in result or "error" in result
+                        assert "network_requests" in result or "error" in result
 
 
 @pytest.mark.integration
@@ -69,8 +69,8 @@ async def test_api_discovery_workflow():
         
         with patch("src.mcp.server.network_interceptor") as mock_interceptor:
             mock_interceptor.start_intercepting = AsyncMock()
-            mock_interceptor.capture_all_requests.return_value = []
-            mock_interceptor.capture_all_responses.return_value = []
+            mock_interceptor.capture_all_requests = AsyncMock(return_value=[])
+            mock_interceptor.capture_all_responses = AsyncMock(return_value=[])
             mock_interceptor.reset = MagicMock()
             
             with patch("src.mcp.server.api_discovery") as mock_api:
@@ -100,7 +100,7 @@ async def test_recording_and_replay_workflow():
     # Mock recording session
     with patch("src.mcp.server.recording_storage") as mock_storage:
         # Test list recordings
-        mock_storage.list_recordings.return_value = {"active": [], "saved": []}
+        mock_storage.list_recordings.return_value = []
         
         list_result = await handle_list_recordings({})
         
@@ -119,16 +119,20 @@ async def test_recording_and_replay_workflow():
         mock_storage.unregister_active_recording = MagicMock()
         mock_storage.save_recording = MagicMock()
         
-        with patch("src.mcp.server.session_recorder") as mock_recorder:
-            mock_recorder.stop_recording = AsyncMock()
-            mock_recorder.current_recording = MagicMock()
-            
+        from src.mcp.server import _active_recordings
+        mock_recorder = MagicMock()
+        mock_recorder.stop_recording = AsyncMock(return_value=MagicMock())
+        _active_recordings["test-recording"] = (mock_recorder, MagicMock(), MagicMock())
+        
+        try:
             stop_result = await handle_stop_recording({
                 "recording_id": "test-recording",
                 "save": True
             })
             
             assert "recording_id" in stop_result or "error" in stop_result
+        finally:
+            _active_recordings.pop("test-recording", None)
 
 
 @pytest.mark.integration
@@ -151,7 +155,7 @@ async def test_screenshot_workflow():
             "full_page": True
         })
         
-        assert "base64_image" in result or "error" in result
+        assert "screenshot" in result or "error" in result
 
 
 @pytest.mark.integration
@@ -212,7 +216,7 @@ async def test_sitemap_analysis_workflow():
         ))
         
         result = await handle_analyze_sitemap({
-            "url": "https://example.com/sitemap.xml"
+            "sitemap_url": "https://example.com/sitemap.xml"
         })
         
         assert "entries" in result or "error" in result
@@ -278,5 +282,5 @@ async def test_technology_detection_workflow():
                 "url": "https://example.com"
             })
             
-            assert "technologies" in result or "error" in result
+            assert "cms" in result or "error" in result
 

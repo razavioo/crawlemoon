@@ -1135,6 +1135,67 @@ async def list_tools() -> List[Tool]:
                 "required": ["url", "selector"]
             }
         ),
+        Tool(
+            name="crawl",
+            description="Recursively crawl pages starting from a seed URL, extracting clean markdown and page metadata.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "url": {
+                        "type": "string",
+                        "description": "Seed URL to start crawling from"
+                    },
+                    "max_depth": {
+                        "type": "integer",
+                        "description": "Maximum depth to recursively follow links (default: 2, max: 5)",
+                        "default": 2
+                    },
+                    "max_pages": {
+                        "type": "integer",
+                        "description": "Maximum total pages to crawl across the entire crawl session (default: 10, max: 100)",
+                        "default": 10
+                    },
+                    "concurrency": {
+                        "type": "integer",
+                        "description": "Number of concurrent browser contexts/workers to run (default: 3, max: 10)",
+                        "default": 3
+                    },
+                    "ignore_external": {
+                        "type": "boolean",
+                        "description": "Only follow links on the same domain (default: true)",
+                        "default": True
+                    },
+                    "save_to_file": {
+                        "type": "boolean",
+                        "description": "Save crawling results to a file inside the project crawls directory (default: false)",
+                        "default": False
+                    }
+                },
+                "required": ["url"]
+            }
+        ),
+        Tool(
+            name="structured_extract",
+            description="Extract highly structured JSON data from a page directly using an LLM and a target JSON schema, bypassing brittle CSS selectors.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "url": {
+                        "type": "string",
+                        "description": "URL of the page to extract structured data from"
+                    },
+                    "schema": {
+                        "type": "object",
+                        "description": "Target JSON schema mapping fields to types and structures"
+                    },
+                    "instructions": {
+                        "type": "string",
+                        "description": "Optional natural-language guidance or rules for context"
+                    }
+                },
+                "required": ["url", "schema"]
+            }
+        ),
     ]
 
 
@@ -1199,6 +1260,8 @@ def _get_pydantic_schema_map() -> Dict[str, Any]:
         "generate_crawler": _s.GenerateCrawlerArgs,
         "execute_cdp": _s.ExecuteCDPArgs,
         "clear_cache": _s.ClearCacheArgs,
+        "crawl": _s.CrawlArgs,
+        "structured_extract": _s.StructuredExtractArgs,
     }
     return _PYDANTIC_SCHEMA_MAP
 
@@ -1318,6 +1381,8 @@ async def call_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
             "monitor_network": handle_monitor_network,
             "fill_form": handle_fill_form,
             "wait_and_extract": handle_wait_and_extract,
+            "crawl": handle_crawl,
+            "structured_extract": handle_structured_extract,
         }
         
         handler = handler_map.get(name)
@@ -2448,6 +2513,8 @@ async def handle_smart_extract(arguments: Dict[str, Any]) -> Dict[str, Any]:
 async def handle_convert_to_markdown(arguments: Dict[str, Any]) -> Dict[str, Any]:
     """Handle convert_to_markdown tool."""
     url = arguments["url"]
+    css_selector = arguments.get("css_selector")
+    exclude_selectors = arguments.get("exclude_selectors")
     
     # Apply rate limiting
     await rate_limiter.wait_if_needed(url)
@@ -2459,7 +2526,12 @@ async def handle_convert_to_markdown(arguments: Dict[str, Any]) -> Dict[str, Any
             html = await page.content()
             
             # Convert to markdown
-            markdown = content_extractor.extract_to_markdown(html, url)
+            markdown = content_extractor.extract_to_markdown(
+                html,
+                url,
+                css_selector=css_selector,
+                exclude_selectors=exclude_selectors,
+            )
             
             return {
                 "url": url,
@@ -2470,6 +2542,242 @@ async def handle_convert_to_markdown(arguments: Dict[str, Any]) -> Dict[str, Any
         
         except Exception as e:
             logger.error(f"Error converting {url} to markdown: {e}", exc_info=True)
+            raise
+
+
+@with_retry(max_retries=config.max_retries, delay=config.retry_delay)
+async def handle_crawl(arguments: Dict[str, Any]) -> Dict[str, Any]:
+    """Handle recursive crawling of a website up to limit depth and pages."""
+    seed_url = arguments["url"]
+    max_depth = min(max(int(arguments.get("max_depth", 2)), 1), 5)
+    max_pages = min(max(int(arguments.get("max_pages", 10)), 1), 100)
+    concurrency = min(max(int(arguments.get("concurrency", 3)), 1), 10)
+    ignore_external = arguments.get("ignore_external", True)
+    save_to_file = arguments.get("save_to_file", False)
+    css_selector = arguments.get("css_selector")
+    exclude_selectors = arguments.get("exclude_selectors")
+
+    from urllib.parse import urlparse, urljoin
+    parsed_seed = urlparse(seed_url)
+    base_domain = parsed_seed.netloc
+
+    # State tracking
+    visited = {seed_url}
+    results = {}
+    
+    # Queue-based recursive crawling
+    queue = asyncio.Queue()
+    await queue.put((seed_url, 1)) # (url, current_depth)
+    
+    semaphore = asyncio.Semaphore(concurrency)
+    
+    async def worker():
+        while True:
+            try:
+                url, depth = await asyncio.wait_for(queue.get(), timeout=1.0)
+            except asyncio.TimeoutError:
+                break
+                
+            async with semaphore:
+                # Apply rate limiting
+                await rate_limiter.wait_if_needed(url)
+                
+                try:
+                    logger.info(f"Crawling URL: {url} (Depth: {depth}/{max_depth})")
+                    async with browser_context_manager(url=url) as page:
+                        response = await navigate_to_url(page, url)
+                        html = await page.content()
+                        title = await page.title()
+                        
+                        # Convert to markdown
+                        markdown = content_extractor.extract_to_markdown(
+                            html,
+                            url,
+                            css_selector=css_selector,
+                            exclude_selectors=exclude_selectors,
+                        )
+                        
+                        # Extract links
+                        links_data = await page.evaluate("""
+                            () => {
+                                return Array.from(document.querySelectorAll('a[href]')).map(a => ({
+                                    href: a.href,
+                                    text: a.textContent.trim()
+                                }));
+                            }
+                        """)
+                        
+                        internal_links = []
+                        external_links = []
+                        
+                        for link in links_data:
+                            href = link.get("href", "").strip()
+                            if not href or href.startswith("javascript:") or href.startswith("mailto:") or href.startswith("tel:"):
+                                continue
+                            
+                            clean_href = href.split('#')[0]
+                            parsed_link = urlparse(clean_href)
+                            
+                            if parsed_link.scheme not in ("http", "https"):
+                                continue
+                                
+                            is_internal = parsed_link.netloc == base_domain
+                            
+                            if is_internal:
+                                internal_links.append(clean_href)
+                                if clean_href not in visited and depth < max_depth and len(visited) < max_pages:
+                                    visited.add(clean_href)
+                                    await queue.put((clean_href, depth + 1))
+                            else:
+                                external_links.append(clean_href)
+                                if not ignore_external and clean_href not in visited and depth < max_depth and len(visited) < max_pages:
+                                    visited.add(clean_href)
+                                    await queue.put((clean_href, depth + 1))
+                                    
+                        results[url] = {
+                            "title": title,
+                            "markdown": markdown[:5000] + "..." if len(markdown) > 5000 else markdown, # limit size in return
+                            "depth": depth,
+                            "links": {
+                                "internal_count": len(internal_links),
+                                "external_count": len(external_links)
+                            }
+                        }
+                except Exception as e:
+                    logger.error(f"Error crawling page {url}: {e}")
+                    results[url] = {
+                        "error": str(e),
+                        "depth": depth
+                    }
+                finally:
+                    queue.task_done()
+
+    # Launch concurrent worker tasks
+    workers = [asyncio.create_task(worker()) for _ in range(concurrency)]
+    await asyncio.gather(*workers)
+    
+    response_data = {
+        "seed_url": seed_url,
+        "pages_crawled": len(results),
+        "max_depth": max_depth,
+        "max_pages": max_pages,
+        "results": results,
+        "timestamp": datetime.now().isoformat()
+    }
+    
+    if save_to_file:
+        try:
+            os.makedirs(".crawls", exist_ok=True)
+            safe_domain = "".join(c for c in base_domain if c.isalnum() or c in ".-_").rstrip()
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filepath = os.path.abspath(f".crawls/crawl_{safe_domain}_{timestamp}.json")
+            with open(filepath, "w", encoding="utf-8") as f:
+                json.dump(response_data, f, indent=2, ensure_ascii=False)
+            response_data["saved_to_file"] = filepath
+        except Exception as e:
+            logger.error(f"Failed to save crawl to file: {e}")
+            response_data["save_error"] = str(e)
+            
+    return response_data
+
+
+@with_retry(max_retries=config.max_retries, delay=config.retry_delay)
+async def handle_structured_extract(arguments: Dict[str, Any]) -> Dict[str, Any]:
+    """Handle structured_extract tool using LLM directly on page markdown."""
+    url = arguments["url"]
+    schema = arguments["schema"]
+    instructions = arguments.get("instructions")
+    css_selector = arguments.get("css_selector")
+    exclude_selectors = arguments.get("exclude_selectors")
+    
+    if not smart_extractor.llm_enabled or not smart_extractor.client:
+        return {
+            "error": (
+                "LLM extraction is not configured. Please set the CRAWILFY_LLM_PROVIDER "
+                "and CRAWILFY_LLM_API_KEY environment variables to use structured_extract. "
+                "Supported providers include openrouter, groq, together, ollama (local), or openai."
+            )
+        }
+        
+    await rate_limiter.wait_if_needed(url)
+    
+    async with browser_context_manager(url=url) as page:
+        try:
+            response = await navigate_to_url(page, url)
+            html = await page.content()
+            
+            # Convert to markdown with filtering options
+            markdown = content_extractor.extract_to_markdown(
+                html,
+                url,
+                css_selector=css_selector,
+                exclude_selectors=exclude_selectors,
+            )
+            markdown_sample = markdown[:16000] if len(markdown) > 16000 else markdown
+            
+            instruction_text = f"\nAdditional Instructions: {instructions}" if instructions else ""
+            
+            prompt = f"""You are a precise data extraction AI. Extract structured data from the following webpage markdown according to the target JSON schema.
+            
+Webpage Markdown:
+{markdown_sample}
+
+Target JSON Schema:
+{json.dumps(schema, indent=2)}
+{instruction_text}
+
+Respond STRICTLY with a valid JSON object matching the target JSON schema. No explanations, no markdown formatting blocks, just the raw JSON object."""
+
+            try:
+                try:
+                    # Try with JSON mode
+                    response = smart_extractor.client.chat.completions.create(
+                        model=smart_extractor.model,
+                        messages=[
+                            {"role": "system", "content": "You are a specialized JSON extraction assistant that only outputs valid JSON matching the requested schema. Do not enclose in markdown blocks."},
+                            {"role": "user", "content": prompt}
+                        ],
+                        response_format={"type": "json_object"},
+                        temperature=0.1,
+                        max_tokens=2000,
+                    )
+                except Exception as json_mode_err:
+                    logger.warning(f"JSON mode failed, retrying without response_format: {json_mode_err}")
+                    response = smart_extractor.client.chat.completions.create(
+                        model=smart_extractor.model,
+                        messages=[
+                            {"role": "system", "content": "You are a specialized JSON extraction assistant that only outputs valid JSON matching the requested schema. Do not enclose in markdown blocks."},
+                            {"role": "user", "content": prompt}
+                        ],
+                        temperature=0.1,
+                        max_tokens=2000,
+                    )
+                
+                content = response.choices[0].message.content.strip()
+                
+                # Robustly strip markdown json code block fences if present
+                import re
+                json_match = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", content)
+                if json_match:
+                    content = json_match.group(1).strip()
+                    
+                extracted_json = json.loads(content)
+                
+                return {
+                    "url": url,
+                    "extracted_data": extracted_json,
+                    "model": smart_extractor.model,
+                    "timestamp": datetime.now().isoformat()
+                }
+            except Exception as llm_err:
+                logger.error(f"LLM call failed for structured_extract: {llm_err}")
+                return {
+                    "error": f"LLM extraction failed: {str(llm_err)}",
+                    "url": url
+                }
+                
+        except Exception as e:
+            logger.error(f"Error in handle_structured_extract for {url}: {e}", exc_info=True)
             raise
 
 

@@ -481,15 +481,12 @@ class CaptchaSolver:
     
     def is_available(self) -> bool:
         """Check if any CAPTCHA solving service is available."""
-        # Browser automation is always available (uses Playwright which is required)
-        browser_automation_available = True
         # OCR for image CAPTCHAs (optional)
         ocr_available = OCR_AVAILABLE or EASYOCR_AVAILABLE
         # Paid services (optional)
         paid_available = (self.anticaptcha_client is not None) or (self.capsolver_client is not None)
         
-        # Always available if browser automation works (for reCAPTCHA v2)
-        return browser_automation_available or ocr_available or paid_available
+        return paid_available or ocr_available
 
 
 # Global instance
@@ -498,7 +495,7 @@ _captcha_solver = None
 def get_captcha_solver(
     anticaptcha_key: Optional[str] = None,
     capsolver_key: Optional[str] = None,
-    use_free_methods: bool = True,
+    use_free_methods: bool = False,
 ) -> Optional[CaptchaSolver]:
     """Get global CAPTCHA solver instance.
     

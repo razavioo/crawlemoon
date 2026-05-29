@@ -12,7 +12,7 @@ async def test_server_initialization():
     from src.mcp.server import server
     
     assert server is not None
-    assert server.name == "crawilfy"
+    assert server.name == "crawilfy-mcp-server"
 
 
 @pytest.mark.integration
@@ -113,7 +113,7 @@ async def test_tool_execution_extract_from_js():
     const API_KEY = 'secret123';
     '''
     
-    result = await call_tool("extract_from_js", {"code": code})
+    result = await call_tool("extract_from_js", {"code": code, "url": "https://example.com"})
     
     assert len(result) > 0
     content = result[0]

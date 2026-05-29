@@ -68,7 +68,7 @@ class JSAnalyzer:
         try:
             tree = esprima.parseScript(code, {'loc': True, 'tolerant': True})
             return self._analyze_ast(tree)
-        except (SyntaxError, TypeError, ValueError) as exc:
+        except Exception as exc:
             logger.debug("AST parsing failed: %s, falling back to regex", exc)
             return {}
     

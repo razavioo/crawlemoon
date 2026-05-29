@@ -74,8 +74,10 @@ class ContentExtractor:
         include_images: bool = True,
         include_links: bool = True,
         output_format: str = "text",
+        css_selector: Optional[str] = None,
+        exclude_selectors: Optional[Any] = None,
     ) -> ExtractedContent:
-        """Extract content from HTML.
+        """Extract content from HTML with premium DOM pruning and filtering.
         
         Args:
             html: HTML content to extract from
@@ -85,10 +87,40 @@ class ContentExtractor:
             include_images: Include image references
             include_links: Include links
             output_format: Output format (text, markdown, json, xml)
+            css_selector: Optional CSS selector to include (e.g. '#main-content')
+            exclude_selectors: Optional CSS selectors to remove (e.g. 'nav, footer')
             
         Returns:
             ExtractedContent object
         """
+        # Blazing-fast DOM Pruning & Markdown Filtering using selectolax
+        if SELECTOLAX_AVAILABLE and (css_selector or exclude_selectors):
+            try:
+                tree = HTMLParser(html)
+                
+                # 1. Exclude selectors (remove elements we don't want)
+                if exclude_selectors:
+                    if isinstance(exclude_selectors, str):
+                        exclude_list = [s.strip() for s in exclude_selectors.split(",") if s.strip()]
+                    else:
+                        exclude_list = exclude_selectors
+                    
+                    for selector in exclude_list:
+                        for elem in tree.css(selector):
+                            elem.decompose()
+                
+                # 2. Extract css_selector (keep only the container we want)
+                if css_selector:
+                    matching = tree.css(css_selector)
+                    if matching:
+                        html = "".join(elem.html for elem in matching)
+                    else:
+                        logger.warning(f"No elements matched css_selector: {css_selector}")
+                else:
+                    html = tree.html or html
+            except Exception as e:
+                logger.warning(f"Error filtering HTML with selectors: {e}")
+
         extracted = ExtractedContent(url=url)
         
         if TRAFILATURA_AVAILABLE:
@@ -205,22 +237,54 @@ class ContentExtractor:
         self,
         html: str,
         url: Optional[str] = None,
+        css_selector: Optional[str] = None,
+        exclude_selectors: Optional[Any] = None,
     ) -> str:
         """Extract content and convert to markdown (LLM-ready).
         
         Args:
             html: HTML content
             url: Optional URL for context
+            css_selector: Optional CSS selector to include
+            exclude_selectors: Optional CSS selectors to exclude
             
         Returns:
             Markdown string
         """
-        extracted = self.extract(html, url=url, output_format="text")
+        extracted = self.extract(
+            html,
+            url=url,
+            output_format="text",
+            css_selector=css_selector,
+            exclude_selectors=exclude_selectors,
+        )
         
         if extracted.markdown:
             return extracted.markdown
         
-        # Fallback: convert HTML to markdown
+        # Fallback: convert HTML to markdown (after applying selector filtering if selectolax is available)
+        if SELECTOLAX_AVAILABLE and (css_selector or exclude_selectors):
+            try:
+                tree = HTMLParser(html)
+                if exclude_selectors:
+                    if isinstance(exclude_selectors, str):
+                        exclude_list = [s.strip() for s in exclude_selectors.split(",") if s.strip()]
+                    else:
+                        exclude_list = exclude_selectors
+                    for selector in exclude_list:
+                        for elem in tree.css(selector):
+                            elem.decompose()
+                if css_selector:
+                    matching = tree.css(css_selector)
+                    if matching:
+                        html = "".join(elem.html for elem in matching)
+                    else:
+                        html = ""
+                else:
+                    html = tree.html or html
+            except Exception as e:
+                logger.warning("Error filtering HTML fallback with selectors: %s", e)
+
         if MARKDOWNIFY_AVAILABLE:
             try:
                 return md(html, heading_style="ATX", bullets="•")

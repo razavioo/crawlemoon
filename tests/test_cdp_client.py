@@ -10,7 +10,8 @@ from src.core.browser.cdp import CDPClient
 def mock_context():
     """Create a mock browser context."""
     context = MagicMock()
-    context.pages = []
+    mock_page = MagicMock()
+    context.pages = [mock_page]
     return context
 
 
@@ -35,15 +36,13 @@ async def test_cdp_client_connect(cdp_client, mock_context):
     mock_session = MagicMock()
     mock_context.new_cdp_session = AsyncMock(return_value=mock_session)
     
-    # Create a simple list with a mock page - not an async iterable
-    # The CDPClient.connect() does `await self.context.pages[0]`
-    # which is wrong in the source but we need to test it works
-    mock_context.pages = []
+    mock_page = MagicMock()
+    mock_context.pages = [mock_page]
     
     await cdp_client.connect()
     
     assert cdp_client._cdp_session == mock_session
-    mock_context.new_cdp_session.assert_called_once_with(None)
+    mock_context.new_cdp_session.assert_called_once_with(mock_page)
 
 
 @pytest.mark.asyncio
@@ -53,10 +52,8 @@ async def test_cdp_client_connect_no_pages(cdp_client, mock_context):
     mock_context.new_cdp_session = AsyncMock(return_value=mock_session)
     mock_context.pages = []
     
-    await cdp_client.connect()
-    
-    # Should call with None when no pages
-    mock_context.new_cdp_session.assert_called_once_with(None)
+    with pytest.raises(RuntimeError, match="No pages available"):
+        await cdp_client.connect()
 
 
 @pytest.mark.asyncio
@@ -65,7 +62,7 @@ async def test_send_command(cdp_client, mock_context):
     mock_session = AsyncMock()
     mock_session.send = AsyncMock(return_value={"result": "success"})
     mock_context.new_cdp_session = AsyncMock(return_value=mock_session)
-    mock_context.pages = []
+    pass
     
     result = await cdp_client.send_command("Network.enable")
     
@@ -79,7 +76,7 @@ async def test_send_command_with_params(cdp_client, mock_context):
     mock_session = AsyncMock()
     mock_session.send = AsyncMock(return_value={"result": "success"})
     mock_context.new_cdp_session = AsyncMock(return_value=mock_session)
-    mock_context.pages = []
+    pass
     
     params = {"param1": "value1"}
     result = await cdp_client.send_command("Page.navigate", params)
@@ -93,7 +90,7 @@ async def test_enable_network_domain(cdp_client, mock_context):
     mock_session = AsyncMock()
     mock_session.send = AsyncMock(return_value={})
     mock_context.new_cdp_session = AsyncMock(return_value=mock_session)
-    mock_context.pages = []
+    pass
     
     await cdp_client.enable_network_domain()
     
@@ -106,7 +103,7 @@ async def test_enable_runtime_domain(cdp_client, mock_context):
     mock_session = AsyncMock()
     mock_session.send = AsyncMock(return_value={})
     mock_context.new_cdp_session = AsyncMock(return_value=mock_session)
-    mock_context.pages = []
+    pass
     
     await cdp_client.enable_runtime_domain()
     
@@ -119,7 +116,7 @@ async def test_enable_page_domain(cdp_client, mock_context):
     mock_session = AsyncMock()
     mock_session.send = AsyncMock(return_value={})
     mock_context.new_cdp_session = AsyncMock(return_value=mock_session)
-    mock_context.pages = []
+    pass
     
     await cdp_client.enable_page_domain()
     
@@ -132,7 +129,7 @@ async def test_enable_dom_domain(cdp_client, mock_context):
     mock_session = AsyncMock()
     mock_session.send = AsyncMock(return_value={})
     mock_context.new_cdp_session = AsyncMock(return_value=mock_session)
-    mock_context.pages = []
+    pass
     
     await cdp_client.enable_dom_domain()
     
@@ -147,7 +144,7 @@ async def test_evaluate_expression(cdp_client, mock_context):
         "result": {"value": "test result"}
     })
     mock_context.new_cdp_session = AsyncMock(return_value=mock_session)
-    mock_context.pages = []
+    pass
     
     result = await cdp_client.evaluate_expression("document.title")
     
@@ -164,7 +161,7 @@ async def test_evaluate_expression_no_return_by_value(cdp_client, mock_context):
     mock_session = AsyncMock()
     mock_session.send = AsyncMock(return_value={"result": {}})
     mock_context.new_cdp_session = AsyncMock(return_value=mock_session)
-    mock_context.pages = []
+    pass
     
     result = await cdp_client.evaluate_expression("console.log('test')", return_by_value=False)
     
@@ -180,7 +177,7 @@ async def test_add_script_to_new_document(cdp_client, mock_context):
     mock_session = AsyncMock()
     mock_session.send = AsyncMock(return_value={"identifier": "script-123"})
     mock_context.new_cdp_session = AsyncMock(return_value=mock_session)
-    mock_context.pages = []
+    pass
     
     script = "console.log('injected');"
     script_id = await cdp_client.add_script_to_evaluate_on_new_document(script)
@@ -204,7 +201,7 @@ async def test_get_dom_tree(cdp_client, mock_context):
     }
     mock_session.send = AsyncMock(return_value=mock_dom)
     mock_context.new_cdp_session = AsyncMock(return_value=mock_session)
-    mock_context.pages = []
+    pass
     
     result = await cdp_client.get_dom_tree()
     
@@ -218,7 +215,7 @@ async def test_get_dom_tree_with_depth(cdp_client, mock_context):
     mock_session = AsyncMock()
     mock_session.send = AsyncMock(return_value={"root": {}})
     mock_context.new_cdp_session = AsyncMock(return_value=mock_session)
-    mock_context.pages = []
+    pass
     
     await cdp_client.get_dom_tree(depth=5)
     
@@ -230,7 +227,7 @@ async def test_on_event(cdp_client, mock_context):
     """Test event listener registration."""
     mock_session = MagicMock()
     mock_context.new_cdp_session = AsyncMock(return_value=mock_session)
-    mock_context.pages = []
+    pass
     
     callback = MagicMock()
     await cdp_client.on_event("Network.requestWillBeSent", callback)
@@ -243,7 +240,7 @@ async def test_close(cdp_client, mock_context):
     """Test CDP session close."""
     mock_session = AsyncMock()
     mock_context.new_cdp_session = AsyncMock(return_value=mock_session)
-    mock_context.pages = []
+    pass
     
     await cdp_client.connect()
     assert cdp_client._cdp_session is not None
@@ -268,7 +265,7 @@ async def test_send_command_auto_connects(cdp_client, mock_context):
     mock_session = AsyncMock()
     mock_session.send = AsyncMock(return_value={})
     mock_context.new_cdp_session = AsyncMock(return_value=mock_session)
-    mock_context.pages = []
+    pass
     
     # Send command without explicit connect
     await cdp_client.send_command("Network.enable")
@@ -283,7 +280,7 @@ async def test_evaluate_expression_handles_missing_value(cdp_client, mock_contex
     mock_session = AsyncMock()
     mock_session.send = AsyncMock(return_value={"result": {}})
     mock_context.new_cdp_session = AsyncMock(return_value=mock_session)
-    mock_context.pages = []
+    pass
     
     result = await cdp_client.evaluate_expression("undefined")
     
@@ -296,7 +293,7 @@ async def test_evaluate_expression_handles_missing_result(cdp_client, mock_conte
     mock_session = AsyncMock()
     mock_session.send = AsyncMock(return_value={})
     mock_context.new_cdp_session = AsyncMock(return_value=mock_session)
-    mock_context.pages = []
+    pass
     
     result = await cdp_client.evaluate_expression("test")
     

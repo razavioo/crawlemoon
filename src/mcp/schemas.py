@@ -71,6 +71,20 @@ class _URLMixin(BaseModel):
         return _validate_url(v)
 
 
+class _DOMFilterMixin(BaseModel):
+    css_selector: Optional[str] = Field(None, description="CSS selector to target specific container for extraction")
+    exclude_selectors: Optional[List[str]] = Field(None, description="List of CSS selectors to exclude/remove from the DOM before extraction")
+
+    @field_validator("exclude_selectors", mode="before")
+    @classmethod
+    def parse_exclude_selectors(cls, v: Any) -> Optional[List[str]]:
+        if v is None:
+            return None
+        if isinstance(v, str):
+            return [s.strip() for s in v.split(",") if s.strip()]
+        return v
+
+
 # ---------------------------------------------------------------------------
 # Deep analysis
 # ---------------------------------------------------------------------------
@@ -154,11 +168,11 @@ class ExtractMetadataArgs(_URLMixin):
     pass
 
 
-class ConvertToMarkdownArgs(_URLMixin):
+class ConvertToMarkdownArgs(_URLMixin, _DOMFilterMixin):
     pass
 
 
-class SmartExtractArgs(_URLMixin):
+class SmartExtractArgs(_URLMixin, _DOMFilterMixin):
     instructions: str = Field(..., description="Natural-language extraction instructions")
 
     @field_validator("instructions")
@@ -393,3 +407,21 @@ class ClearCacheArgs(BaseModel):
     cache_type: Optional[Literal["page", "response", "state"]] = Field(
         None, description="Cache to clear; clears all when omitted"
     )
+
+
+# ---------------------------------------------------------------------------
+# Crawl / Structured Extraction
+# ---------------------------------------------------------------------------
+
+class CrawlArgs(_URLMixin, _DOMFilterMixin):
+    max_depth: int = Field(2, ge=1, le=5, description="Maximum crawl depth (1 = seed page only)")
+    max_pages: int = Field(10, ge=1, le=100, description="Maximum total pages to crawl")
+    concurrency: int = Field(3, ge=1, le=10, description="Max concurrent page loads")
+    ignore_external: bool = Field(True, description="Only crawl links within the same domain")
+    save_to_file: bool = Field(False, description="Save crawling results to a file inside .crawls directory")
+
+
+class StructuredExtractArgs(_URLMixin, _DOMFilterMixin):
+    schema_def: Dict[str, Any] = Field(..., alias="schema", description="Target JSON schema structure for extraction")
+    instructions: Optional[str] = Field(None, description="Optional natural-language guidance for extraction context")
+

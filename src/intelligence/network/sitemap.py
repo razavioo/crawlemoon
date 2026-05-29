@@ -129,7 +129,7 @@ class SitemapAnalyzer:
                         analysis.entries.append(entry)
                         analysis.total_urls += 1
         
-        except (httpx.HTTPError, ET.ParseError, ValueError, KeyError) as exc:
+        except Exception as exc:
             analysis.errors.append(f"Error analyzing sitemap: {exc}")
             logger.error("Error analyzing sitemap %s: %s", sitemap_url, exc, exc_info=True)
         

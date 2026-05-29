@@ -136,7 +136,6 @@ def test_large_recording_serialization():
         
         recording = SessionRecording(
             id=f"large-recording-{num_events}",
-            start_url="https://example.com",
             events=events,
             start_time=datetime.now(),
         )
