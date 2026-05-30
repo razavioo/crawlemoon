@@ -1,9 +1,8 @@
 """Tests for the recursive crawling and structured extraction tools."""
 
 import pytest
-import json
 from unittest.mock import AsyncMock, MagicMock, patch
-from src.mcp.server import handle_crawl, handle_structured_extract, list_tools, call_tool
+from src.mcp.server import handle_crawl, handle_structured_extract, list_tools
 
 
 @pytest.mark.asyncio
@@ -44,7 +43,10 @@ async def test_handle_crawl_basic():
         mock_manager.return_value.__aenter__.return_value = mock_page
         
         with patch("src.mcp.server.navigate_to_url") as mock_navigate:
-            mock_navigate.return_value = AsyncMock()
+            mock_response = MagicMock()
+            mock_response.status = 200
+            mock_response.headers = {}
+            mock_navigate.return_value = mock_response
             
             with patch("src.mcp.server.content_extractor") as mock_extractor:
                 mock_extractor.extract_to_markdown.return_value = "# Mock Page Title\nLink 1"
@@ -110,7 +112,10 @@ async def test_handle_structured_extract_success():
         mock_manager.return_value.__aenter__.return_value = mock_page
         
         with patch("src.mcp.server.navigate_to_url") as mock_navigate:
-            mock_navigate.return_value = AsyncMock()
+            mock_response = MagicMock()
+            mock_response.status = 200
+            mock_response.headers = {}
+            mock_navigate.return_value = mock_response
             
             with patch("src.mcp.server.content_extractor") as mock_extractor:
                 mock_extractor.extract_to_markdown.return_value = "Product Details"
@@ -186,7 +191,10 @@ async def test_handle_structured_extract_code_block_fences():
         mock_manager.return_value.__aenter__.return_value = mock_page
         
         with patch("src.mcp.server.navigate_to_url") as mock_navigate:
-            mock_navigate.return_value = AsyncMock()
+            mock_response = MagicMock()
+            mock_response.status = 200
+            mock_response.headers = {}
+            mock_navigate.return_value = mock_response
             
             with patch("src.mcp.server.content_extractor") as mock_extractor:
                 mock_extractor.extract_to_markdown.return_value = "Product Details"
@@ -228,12 +236,15 @@ async def test_handle_crawl_resilience():
         
         # Make the first navigate succeed, and second navigate throw an error
         call_count = 0
-        async def mock_navigate_func(page, url):
+        async def mock_navigate_func(*_args):
             nonlocal call_count
             call_count += 1
             if call_count > 1:
                 raise Exception("Page navigation failed")
-            return AsyncMock()
+            mock_response = MagicMock()
+            mock_response.status = 200
+            mock_response.headers = {}
+            return mock_response
 
         with patch("src.mcp.server.navigate_to_url", side_effect=mock_navigate_func):
             with patch("src.mcp.server.content_extractor") as mock_extractor:

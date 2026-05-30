@@ -538,7 +538,7 @@ async def list_tools() -> List[Tool]:
         ),
         Tool(
             name="solve_captcha",
-            description="Detect and solve CAPTCHA on a webpage. Supports reCAPTCHA, hCaptcha, and Cloudflare Turnstile. Uses FREE methods (OCR, browser automation) by default. Paid services (ANTICAPTCHA_API_KEY or CAPSOLVER_API_KEY) are optional for better accuracy.",
+            description="Deprecated: detect CAPTCHA challenges and return manual-review guidance. Crawlemoon does not automate CAPTCHA solving or bypass site protections.",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -604,7 +604,7 @@ async def list_tools() -> List[Tool]:
         ),
         Tool(
             name="stealth_request",
-            description="Make HTTP request with TLS fingerprint impersonation to bypass bot detection. Uses curl_cffi for browser-like requests.",
+            description="Make an HTTP request with browser-compatible TLS behavior for authorized testing and compatibility checks. Respect site policies, robots.txt, and rate limits.",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -663,7 +663,7 @@ async def list_tools() -> List[Tool]:
         # Rate Limiter Configuration Tools
         Tool(
             name="configure_rate_limit",
-            description="Configure rate limiting for specific domains or globally. Prevents getting blocked by aggressive crawling.",
+            description="Configure respectful rate limiting for specific domains or globally to reduce load and honor site limits.",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -2461,53 +2461,35 @@ async def handle_extract_article(arguments: Dict[str, Any]) -> Dict[str, Any]:
 
 @with_retry(max_retries=config.max_retries, delay=config.retry_delay)
 async def handle_solve_captcha(arguments: Dict[str, Any]) -> Dict[str, Any]:
-    """Handle solve_captcha tool."""
+    """Handle deprecated solve_captcha tool with detection-only behavior."""
     url = arguments["url"]
-    captcha_type_str = arguments.get("captcha_type", "auto")
-    
+
     # Apply rate limiting
     await rate_limiter.wait_if_needed(url)
-    
+
     async with browser_context_manager(url=url) as page:
         try:
             response = await navigate_to_url(page, url)
-            
             content = await page.content()
-            
-            # Detect CAPTCHA type
-            from ..intelligence.security.bot_detection import CaptchaType
-            captcha_type = None
-            if captcha_type_str != "auto":
-                try:
-                    # Try lookup by enum name (uppercase)
-                    captcha_type = CaptchaType[captcha_type_str.upper()]
-                except KeyError:
-                    try:
-                        # Fallback to lookup by value
-                        captcha_type = CaptchaType(captcha_type_str.lower())
-                    except (ValueError, KeyError):
-                        captcha_type = None
-            
-            # Solve CAPTCHA (pass page for browser automation)
-            solution = await bot_detector.solve_captcha_if_present(
-                content,
-                url,
-                captcha_type,
-                page=page,  # Pass page for free browser automation
-            )
-            
             detected_type = bot_detector.detect_captcha_type(content)
-            
+            protection_type = bot_detector.detect_protection_type(content, response.headers if response else {})
+
             return {
                 "url": url,
                 "detected_type": detected_type.value if detected_type else "none",
-                "solved": solution is not None,
-                "solution_token": solution[:50] + "..." if solution and len(solution) > 50 else solution,
+                "protection_type": protection_type.value if protection_type else "none",
+                "status": "manual_review_required" if detected_type.value != "none" else "no_captcha_detected",
+                "solved": False,
+                "deprecated": True,
+                "message": (
+                    "CAPTCHA solving automation is disabled. If you are authorized to access this site, "
+                    "complete any human verification manually in an approved workflow."
+                ),
                 "timestamp": datetime.now().isoformat(),
             }
-        
+
         except Exception as e:
-            logger.error(f"Error solving CAPTCHA on {url}: {e}", exc_info=True)
+            logger.error(f"Error detecting CAPTCHA on {url}: {e}", exc_info=True)
             raise
 
 
@@ -2667,14 +2649,14 @@ async def handle_crawl(arguments: Dict[str, Any]) -> Dict[str, Any]:
             async with semaphore:
                 # Apply rate limiting
                 await rate_limiter.wait_if_needed(url)
-                
+
                 try:
                     logger.info(f"Crawling URL: {url} (Depth: {depth}/{max_depth})")
                     async with browser_context_manager(url=url) as page:
                         response = await navigate_to_url(page, url)
                         html = await page.content()
                         title = await page.title()
-                        
+
                         # Convert to markdown
                         markdown = content_extractor.extract_to_markdown(
                             html,
