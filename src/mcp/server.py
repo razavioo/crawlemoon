@@ -107,7 +107,7 @@ default_rps = float(os.getenv("CRAWLEMOON_RATE_LIMIT_RPS", "1.0"))
 rate_limiter.set_default_rate_limit(requests_per_second=default_rps)
 
 # Initialize session manager
-session_storage_dir = os.getenv("CRAWLEMOON_SESSION_DIR", ".sessions")
+session_storage_dir = os.getenv("CRAWLEMOON_SESSION_DIR")
 user_data_dir = os.getenv("CRAWLEMOON_USER_DATA_DIR")
 session_manager = SessionManager(
     storage_path=session_storage_dir,

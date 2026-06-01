@@ -25,7 +25,29 @@ import asyncio
 logger = logging.getLogger(__name__)
 
 # Constants for storage
-APP_DATA_DIR = "/Users/emad/.gemini/antigravity"
+
+def _get_app_data_dir() -> str:
+    """Return a cross-platform directory for Crawlemoon runtime data."""
+    if app_data_dir := os.environ.get("CRAWLEMOON_APP_DATA_DIR"):
+        return os.path.expanduser(app_data_dir)
+
+    system = platform.system()
+    if system == "Windows":
+        base_dir = os.environ.get("LOCALAPPDATA") or os.environ.get("APPDATA")
+        if base_dir:
+            return os.path.join(base_dir, "crawlemoon")
+    elif system == "Darwin":
+        return os.path.expanduser("~/Library/Caches/crawlemoon")
+    else:
+        return os.path.join(
+            os.environ.get("XDG_CACHE_HOME", os.path.expanduser("~/.cache")),
+            "crawlemoon",
+        )
+
+    return os.path.join(os.path.expanduser("~"), ".crawlemoon")
+
+
+APP_DATA_DIR = _get_app_data_dir()
 XRAY_BIN_DIR = os.path.join(APP_DATA_DIR, "bin")
 XRAY_CONFIG_DIR = os.path.join(APP_DATA_DIR, "xray")
 

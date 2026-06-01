@@ -130,11 +130,11 @@ This project uses **Trusted Publishing (OIDC)** via GitHub Actions to automate p
 To release a new version:
 
 1. Bump the version number in `pyproject.toml`.
-2. Commit the change and create a git tag matching the version (e.g. `v1.1.7`):
+2. Commit the change and create a git tag matching the version (e.g. `v1.1.8`):
    ```bash
    git add pyproject.toml
-   git commit -m "chore: bump version to 1.1.7"
-   git tag v1.1.7
+   git commit -m "chore: bump version to 1.1.8"
+   git tag v1.1.8
    ```
 3. Push your branch and the tag to GitHub:
    ```bash

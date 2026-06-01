@@ -6,6 +6,7 @@ import os
 import json
 import base64
 import secrets
+import platform
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
@@ -19,6 +20,22 @@ from ...exceptions import SessionEncryptionError, SessionStorageError
 
 logger = logging.getLogger(__name__)
 
+
+def _get_default_storage_path() -> Path:
+    """Return a stable cross-platform path for persisted sessions."""
+    if storage_dir := os.getenv("CRAWLEMOON_SESSION_DIR"):
+        return Path(storage_dir).expanduser()
+    if os.name == "nt":
+        base_dir = os.getenv("LOCALAPPDATA") or os.getenv("APPDATA")
+        if base_dir:
+            return Path(base_dir) / "crawlemoon"
+    elif xdg_data_home := os.getenv("XDG_DATA_HOME"):
+        return Path(xdg_data_home).expanduser() / "crawlemoon"
+
+    if platform.system() == "Darwin":
+        return Path.home() / "Library" / "Application Support" / "crawlemoon"
+
+    return Path.home() / ".local" / "share" / "crawlemoon"
 
 class AuthType(Enum):
     """Authentication type."""
@@ -151,7 +168,7 @@ class SessionManager:
         encryption_key: Optional[str] = None,
         user_data_dir: Optional[str] = None,
     ):
-        self.storage_path = Path(storage_path or ".sessions")
+        self.storage_path = Path(storage_path).expanduser() if storage_path else _get_default_storage_path()
         self.user_data_dir = Path(user_data_dir) if user_data_dir else None
         self._credentials: Dict[str, Credential] = {}
         self._sessions: Dict[str, Session] = {}
@@ -344,7 +361,6 @@ class SessionManager:
         """Load sessions from disk."""
         creds_path = self.storage_path / "credentials.json"
         sessions_path = self.storage_path / "sessions.json"
-        
         # Load credentials
         if creds_path.exists():
             try:
