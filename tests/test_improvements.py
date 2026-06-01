@@ -76,20 +76,22 @@ def test_require_url_passes():
 # ============================================================
 
 
-def test_proxy_pool_all_unhealthy_falls_back_to_all():
+@pytest.mark.asyncio
+async def test_proxy_pool_all_unhealthy_falls_back_to_all():
     """When all proxies are unhealthy get_proxy still returns one (fallback)."""
     pool = ProxyPool(proxies=["http://p1:8080", "http://p2:8080"])
     for proxy in pool.proxies:
         proxy.is_healthy = False
 
     # get_proxy falls back to the full list rather than raising
-    result = asyncio.get_event_loop().run_until_complete(pool.get_proxy())
+    result = await pool.get_proxy()
     assert result is not None
 
 
-def test_proxy_pool_empty_returns_none():
+@pytest.mark.asyncio
+async def test_proxy_pool_empty_returns_none():
     pool = ProxyPool()
-    result = asyncio.get_event_loop().run_until_complete(pool.get_proxy())
+    result = await pool.get_proxy()
     assert result is None
 
 
@@ -135,7 +137,8 @@ async def test_proxy_pool_health_check_failure_marks_proxy(monkeypatch):
     assert proxy.failure_count >= 1
 
 
-def test_proxy_least_used_strategy():
+@pytest.mark.asyncio
+async def test_proxy_least_used_strategy():
     pool = ProxyPool(
         proxies=["http://p1:8080", "http://p2:8080", "http://p3:8080"],
         rotation_strategy=RotationStrategy.LEAST_USED,
@@ -144,18 +147,18 @@ def test_proxy_least_used_strategy():
     pool.proxies[1].usage_count = 2
     pool.proxies[2].usage_count = 5
 
-    selected = asyncio.get_event_loop().run_until_complete(pool.get_proxy())
+    selected = await pool.get_proxy()
     assert selected.usage_count == 2  # least used
 
 
-def test_proxy_sticky_strategy():
+@pytest.mark.asyncio
+async def test_proxy_sticky_strategy():
     pool = ProxyPool(
         proxies=["http://p1:8080", "http://p2:8080"],
         rotation_strategy=RotationStrategy.STICKY,
     )
-    loop = asyncio.get_event_loop()
-    r1 = loop.run_until_complete(pool.get_proxy(domain="example.com"))
-    r2 = loop.run_until_complete(pool.get_proxy(domain="example.com"))
+    r1 = await pool.get_proxy(domain="example.com")
+    r2 = await pool.get_proxy(domain="example.com")
     assert r1.url == r2.url  # same proxy for same domain
 
 
