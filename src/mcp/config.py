@@ -1,7 +1,7 @@
 """Configuration for MCP server."""
 
 from dataclasses import dataclass
-from typing import Optional
+from typing import List, Optional
 import os
 
 
@@ -94,6 +94,14 @@ class MCPServerConfig:
     # Per-script ceilings for execute_js / execute_cdp.
     js_max_length: int = 50_000
     js_exec_timeout: float = 10.0
+
+    # Proxy settings
+    proxies: Optional[List[str]] = None
+    proxies_file: Optional[str] = None
+    proxy_default_scheme: str = "http"
+    proxy_rotation: str = "round_robin"
+    proxy_health_check_interval: int = 300
+    proxy_fail_closed: bool = False
     
     @classmethod
     def from_env(cls) -> "MCPServerConfig":
@@ -148,4 +156,14 @@ class MCPServerConfig:
             allow_dangerous_js=os.getenv("CRAWLEMOON_ALLOW_DANGEROUS_JS", "false").lower() == "true",
             js_max_length=int(os.getenv("CRAWLEMOON_JS_MAX_LENGTH", "50000")),
             js_exec_timeout=float(os.getenv("CRAWLEMOON_JS_EXEC_TIMEOUT", "10.0")),
+            proxies=[
+                proxy.strip()
+                for proxy in os.getenv("CRAWLEMOON_PROXIES", "").replace("\n", ",").split(",")
+                if proxy.strip()
+            ] or None,
+            proxies_file=os.getenv("CRAWLEMOON_PROXIES_FILE") or None,
+            proxy_default_scheme=os.getenv("CRAWLEMOON_PROXY_SCHEME", "http"),
+            proxy_rotation=os.getenv("CRAWLEMOON_PROXY_ROTATION", "round_robin"),
+            proxy_health_check_interval=int(os.getenv("CRAWLEMOON_PROXY_HEALTH_CHECK_INTERVAL", "300")),
+            proxy_fail_closed=os.getenv("CRAWLEMOON_PROXY_FAIL_CLOSED", "false").lower() == "true",
         )

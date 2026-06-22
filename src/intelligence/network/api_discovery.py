@@ -9,6 +9,7 @@ from urllib.parse import urlparse, parse_qs
 from enum import Enum
 
 from .interceptor import CapturedRequest, CapturedResponse
+from ...core.http.proxy import httpx_proxy_kwargs
 
 logger = logging.getLogger(__name__)
 
@@ -455,7 +456,8 @@ class APIDiscoveryEngine:
         """
         
         try:
-            async with httpx.AsyncClient() as client:
+            proxy_args = await httpx_proxy_kwargs(endpoint_url)
+            async with httpx.AsyncClient(**proxy_args) as client:
                 response = await client.post(
                     endpoint_url,
                     json={"query": introspection_query},

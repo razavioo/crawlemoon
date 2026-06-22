@@ -10,6 +10,7 @@ from src.core.browser.proxy_pool import (
     Proxy,
     ProxyType,
     RotationStrategy,
+    parse_proxy_source,
 )
 
 
@@ -79,6 +80,76 @@ def test_add_proxy_with_credentials():
     
     assert proxy.username == "user"
     assert proxy.password == "pass"
+
+
+def test_normalize_proxy_webshare_style():
+    """Test Webshare host:port:user:pass format normalization."""
+    proxy = ProxyPool.normalize_proxy("31.59.20.176:6754:uusmdewb:en3w097syrxh")
+
+    assert proxy.url == "http://31.59.20.176:6754"
+    assert proxy.proxy_type == ProxyType.HTTP
+    assert proxy.username == "uusmdewb"
+    assert proxy.password == "en3w097syrxh"
+    assert proxy.masked_url() == "http://uusmdewb:***@31.59.20.176:6754"
+
+
+def test_normalize_proxy_host_port_with_default_credentials():
+    """Test host:port entries with default credentials and scheme."""
+    proxy = ProxyPool.normalize_proxy(
+        "proxy.example.com:1080",
+        username="user",
+        password="pass",
+        default_scheme="socks5",
+    )
+
+    assert proxy.url == "socks5://proxy.example.com:1080"
+    assert proxy.proxy_type == ProxyType.SOCKS5
+    assert proxy.username == "user"
+    assert proxy.password == "pass"
+
+
+def test_normalize_proxy_url_strips_credentials_from_url():
+    """Test standard URLs keep credentials separately for adapter safety."""
+    proxy = ProxyPool.normalize_proxy("http://user:pass@proxy.example.com:8080")
+
+    assert proxy.url == "http://proxy.example.com:8080"
+    assert proxy.username == "user"
+    assert proxy.password == "pass"
+    assert proxy.to_httpx_proxy_url() == "http://user:pass@proxy.example.com:8080"
+    assert proxy.to_playwright_config() == {
+        "server": "http://proxy.example.com:8080",
+        "username": "user",
+        "password": "pass",
+    }
+
+
+def test_parse_proxy_source_merges_list_text_and_file(tmp_path):
+    """Test proxy sources can be merged from list, text, and file."""
+    proxy_file = tmp_path / "proxies.txt"
+    proxy_file.write_text("# ignored\nfile.example.com:8000\n\n", encoding="utf-8")
+
+    entries = parse_proxy_source(
+        proxies=["list.example.com:8000, list2.example.com:8001"],
+        proxies_text="text.example.com:8000\n# ignored",
+        proxies_file=str(proxy_file),
+    )
+
+    assert entries == [
+        "list.example.com:8000",
+        "list2.example.com:8001",
+        "text.example.com:8000",
+        "file.example.com:8000",
+    ]
+
+
+def test_add_proxy_skips_duplicates():
+    """Test duplicate proxies are not added twice."""
+    pool = ProxyPool()
+
+    pool.add_proxy("proxy.example.com:8080:user:pass")
+    pool.add_proxy("http://user:pass@proxy.example.com:8080")
+
+    assert len(pool.proxies) == 1
 
 
 def test_add_proxies_batch():
@@ -193,6 +264,25 @@ async def test_get_proxy_empty_pool():
     proxy = await pool.get_proxy()
     
     assert proxy is None
+
+
+@pytest.mark.asyncio
+async def test_get_proxy_fail_closed():
+    """Test fail_closed raises exception when no healthy proxies exist."""
+    from src.exceptions import NoHealthyProxyError
+    
+    # Empty pool with fail_closed
+    pool = ProxyPool(fail_closed=True)
+    with pytest.raises(NoHealthyProxyError) as exc:
+        await pool.get_proxy()
+    assert "No proxies configured" in str(exc.value)
+
+    # Unhealthy pool with fail_closed
+    pool = ProxyPool(proxies=["http://proxy1:8080"], fail_closed=True)
+    pool.proxies[0].is_healthy = False
+    with pytest.raises(NoHealthyProxyError) as exc:
+        await pool.get_proxy()
+    assert "All configured proxies are unhealthy" in str(exc.value)
 
 
 def test_proxy_mark_success():
@@ -402,4 +492,3 @@ async def test_concurrent_get_proxy():
     for proxy in results:
         assert proxy is not None
         assert proxy.url in ["http://proxy1:8080", "http://proxy2:8080", "http://proxy3:8080"]
-

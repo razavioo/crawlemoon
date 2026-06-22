@@ -272,6 +272,32 @@ def test_config_fields():
     _ = config.auto_save_recordings
     _ = config.wait_for_network_idle
     _ = config.capture_screenshots
+    _ = config.proxies
+    _ = config.proxies_file
+    _ = config.proxy_default_scheme
+    _ = config.proxy_rotation
+    _ = config.proxy_health_check_interval
+    _ = config.proxy_fail_closed
+
+
+@patch.dict(os.environ, {
+    "CRAWLEMOON_PROXIES": "proxy1.example.com:8000,proxy2.example.com:8001",
+    "CRAWLEMOON_PROXIES_FILE": "/tmp/proxies.txt",
+    "CRAWLEMOON_PROXY_SCHEME": "socks5",
+    "CRAWLEMOON_PROXY_ROTATION": "sticky",
+    "CRAWLEMOON_PROXY_HEALTH_CHECK_INTERVAL": "120",
+    "CRAWLEMOON_PROXY_FAIL_CLOSED": "true",
+})
+def test_config_from_env_proxy_settings():
+    """Test proxy settings from environment."""
+    config = MCPServerConfig.from_env()
+
+    assert config.proxies == ["proxy1.example.com:8000", "proxy2.example.com:8001"]
+    assert config.proxies_file == "/tmp/proxies.txt"
+    assert config.proxy_default_scheme == "socks5"
+    assert config.proxy_rotation == "sticky"
+    assert config.proxy_health_check_interval == 120
+    assert config.proxy_fail_closed is True
 
 
 def test_config_immutability():

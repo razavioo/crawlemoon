@@ -3,6 +3,7 @@
 import logging
 from typing import Dict, Any, Optional
 import httpx
+from ...core.http.proxy import httpx_proxy_kwargs
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +24,8 @@ class GraphQLClient:
     async def query(self, query: str, variables: Optional[Dict] = None) -> Optional[Dict[str, Any]]:
         """Execute a GraphQL query."""
         try:
-            async with httpx.AsyncClient() as client:
+            proxy_args = await httpx_proxy_kwargs(self.endpoint)
+            async with httpx.AsyncClient(**proxy_args) as client:
                 response = await client.post(
                     self.endpoint,
                     json={

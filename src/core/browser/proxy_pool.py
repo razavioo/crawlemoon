@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from typing import List, Optional, Dict, Any
 from enum import Enum
 from datetime import datetime
-from urllib.parse import urlparse
+from urllib.parse import quote, unquote, urlparse
 
 import httpx
 
@@ -31,6 +31,50 @@ class RotationStrategy(Enum):
     LEAST_USED = "least_used"
 
 
+def _detect_proxy_type(scheme: str) -> ProxyType:
+    """Resolve a URL scheme to a supported proxy type."""
+    normalized = scheme.lower()
+    if normalized == "https":
+        return ProxyType.HTTPS
+    if normalized == "socks4":
+        return ProxyType.SOCKS4
+    if normalized == "socks5":
+        return ProxyType.SOCKS5
+    return ProxyType.HTTP
+
+
+def _split_proxy_lines(value: str) -> List[str]:
+    """Split comma/newline separated proxy text while ignoring comments."""
+    entries = []
+    for line in value.replace(",", "\n").splitlines():
+        cleaned = line.strip()
+        if cleaned and not cleaned.startswith("#"):
+            entries.append(cleaned)
+    return entries
+
+
+def load_proxy_entries_from_file(file_path: str) -> List[str]:
+    """Load proxy entries from a local text file."""
+    with open(file_path, "r", encoding="utf-8") as proxy_file:
+        return _split_proxy_lines(proxy_file.read())
+
+
+def parse_proxy_source(
+    proxies: Optional[List[str]] = None,
+    proxies_text: Optional[str] = None,
+    proxies_file: Optional[str] = None,
+) -> List[str]:
+    """Collect proxy entries from list, text, and optional file sources."""
+    entries: List[str] = []
+    for proxy in proxies or []:
+        entries.extend(_split_proxy_lines(proxy))
+    if proxies_text:
+        entries.extend(_split_proxy_lines(proxies_text))
+    if proxies_file:
+        entries.extend(load_proxy_entries_from_file(proxies_file))
+    return entries
+
+
 @dataclass
 class Proxy:
     """Proxy configuration."""
@@ -47,6 +91,8 @@ class Proxy:
     usage_count: int = 0
     is_xray: bool = False
     xray_port: Optional[int] = None
+    source: str = "manual"
+    metadata: Optional[Dict[str, Any]] = None
     
     def to_playwright_config(self) -> Dict[str, Any]:
         """Convert to Playwright proxy configuration."""
@@ -61,6 +107,30 @@ class Proxy:
             config["password"] = self.password
         
         return config
+
+    def to_httpx_proxy_url(self) -> str:
+        """Convert to an httpx-compatible proxy URL."""
+        if not self.username or not self.password:
+            return self.url
+
+        parsed = urlparse(self.url)
+        username = quote(self.username, safe="")
+        password = quote(self.password, safe="")
+        return f"{parsed.scheme}://{username}:{password}@{parsed.netloc}"
+
+    def to_curl_cffi_proxies(self) -> Dict[str, str]:
+        """Convert to curl_cffi requests proxy mapping."""
+        proxy_url = self.to_httpx_proxy_url()
+        return {"http": proxy_url, "https": proxy_url}
+
+    def masked_url(self) -> str:
+        """Return a log-safe proxy URL with credentials redacted."""
+        parsed = urlparse(self.url)
+        if not self.username and not self.password:
+            return self.url
+        username = quote(self.username or "", safe="")
+        credential = f"{username}:***@" if username else "***@"
+        return f"{parsed.scheme}://{credential}{parsed.netloc}"
     
     def mark_success(self):
         """Mark proxy as successful."""
@@ -93,12 +163,14 @@ class ProxyPool:
         health_check_interval: int = 300,  # 5 minutes
         health_check_timeout: float = 5.0,
         xray_manager: Optional[Any] = None,
+        fail_closed: bool = False,
     ):
         self.proxies: List[Proxy] = []
         self.rotation_strategy = rotation_strategy
         self.health_check_interval = health_check_interval
         self.health_check_timeout = health_check_timeout
         self.xray_manager = xray_manager
+        self.fail_closed = fail_closed
         self._current_index = 0
         self._domain_proxy_map: Dict[str, Proxy] = {}  # For sticky strategy
         self._lock = asyncio.Lock()
@@ -113,7 +185,9 @@ class ProxyPool:
             url=proxy_url,
             proxy_type=ProxyType.SOCKS5,
             is_xray=True,
-            xray_port=port
+            xray_port=port,
+            source="xray",
+            metadata={"port": port},
         )
         self.proxies.append(proxy)
         logger.info(f"Registered dynamic Xray proxy: {proxy_url} on port {port}")
@@ -125,34 +199,83 @@ class ProxyPool:
         for proxy_url in proxy_urls:
             self.add_proxy(proxy_url)
     
-    def add_proxy(self, proxy_url: str, username: Optional[str] = None, password: Optional[str] = None) -> Proxy:
-        """Add a single proxy to the pool."""
-        parsed = urlparse(proxy_url)
-        
-        # Determine proxy type from scheme
-        scheme = parsed.scheme.lower()
-        if scheme == "http":
-            proxy_type = ProxyType.HTTP
-        elif scheme == "https":
-            proxy_type = ProxyType.HTTPS
-        elif scheme == "socks4":
-            proxy_type = ProxyType.SOCKS4
-        elif scheme == "socks5":
-            proxy_type = ProxyType.SOCKS5
-        else:
-            # Default to HTTP
-            proxy_type = ProxyType.HTTP
-            proxy_url = f"http://{proxy_url}" if "://" not in proxy_url else proxy_url
-        
-        proxy = Proxy(
-            url=proxy_url,
-            proxy_type=proxy_type,
-            username=username,
-            password=password,
+    @staticmethod
+    def normalize_proxy(
+        proxy_url: str,
+        username: Optional[str] = None,
+        password: Optional[str] = None,
+        default_scheme: str = "http",
+    ) -> Proxy:
+        """Normalize URL and Webshare-style proxy entries into a Proxy object."""
+        raw_proxy = proxy_url.strip()
+        if not raw_proxy:
+            raise ValueError("Proxy URL cannot be empty")
+
+        default_scheme = (default_scheme or "http").lower()
+        if default_scheme not in {"http", "https", "socks4", "socks5"}:
+            raise ValueError("default_scheme must be one of: http, https, socks4, socks5")
+
+        parsed = urlparse(raw_proxy)
+        if parsed.scheme and parsed.scheme.lower() in {"http", "https", "socks4", "socks5"}:
+            proxy_type = _detect_proxy_type(parsed.scheme)
+            host = parsed.hostname
+            port = parsed.port
+            proxy_username = username if username is not None else unquote(parsed.username or "") or None
+            proxy_password = password if password is not None else unquote(parsed.password or "") or None
+            if not host or not port:
+                raise ValueError(f"Invalid proxy URL: {proxy_url}")
+            normalized_url = f"{parsed.scheme.lower()}://{host}:{port}"
+            return Proxy(
+                url=normalized_url,
+                proxy_type=proxy_type,
+                username=proxy_username,
+                password=proxy_password,
+            )
+
+        parts = raw_proxy.split(":")
+        if len(parts) not in {2, 4}:
+            raise ValueError(
+                "Proxy must be URL, host:port, or host:port:username:password"
+            )
+
+        host, port = parts[0].strip(), parts[1].strip()
+        if not host or not port.isdigit():
+            raise ValueError(f"Invalid proxy host/port: {proxy_url}")
+
+        proxy_username = username
+        proxy_password = password
+        if len(parts) == 4:
+            proxy_username = username if username is not None else parts[2].strip() or None
+            proxy_password = password if password is not None else parts[3].strip() or None
+
+        return Proxy(
+            url=f"{default_scheme}://{host}:{port}",
+            proxy_type=_detect_proxy_type(default_scheme),
+            username=proxy_username,
+            password=proxy_password,
         )
+
+    def add_proxy(
+        self,
+        proxy_url: str,
+        username: Optional[str] = None,
+        password: Optional[str] = None,
+        default_scheme: str = "http",
+    ) -> Proxy:
+        """Add a single proxy to the pool."""
+        proxy = self.normalize_proxy(proxy_url, username, password, default_scheme)
+
+        if any(
+            existing.url == proxy.url
+            and existing.username == proxy.username
+            and existing.password == proxy.password
+            for existing in self.proxies
+        ):
+            logger.debug("Skipping duplicate proxy: %s", proxy.masked_url())
+            return proxy
         
         self.proxies.append(proxy)
-        logger.info(f"Added proxy: {proxy_url}")
+        logger.info("Added proxy: %s", proxy.masked_url())
         
         return proxy
     
@@ -178,9 +301,16 @@ class ProxyPool:
                 are unhealthy *and* there are no proxies at all.
         """
         async with self._lock:
+            if self.fail_closed and not self.proxies:
+                from src.exceptions import NoHealthyProxyError
+                raise NoHealthyProxyError("No proxies configured in the pool (fail-closed is enabled)")
+
             healthy_proxies = [p for p in self.proxies if p.is_healthy]
 
             if not healthy_proxies:
+                if self.fail_closed:
+                    from src.exceptions import NoHealthyProxyError
+                    raise NoHealthyProxyError("All configured proxies are unhealthy (fail-closed is enabled)")
                 logger.warning("No healthy proxies available, falling back to all proxies")
                 # Fallback to unhealthy proxies rather than blocking the caller
                 healthy_proxies = self.proxies
@@ -223,19 +353,15 @@ class ProxyPool:
             self._current_index += 1
             return proxy
     
-    async def health_check(self, proxy: Proxy) -> bool:
+    async def health_check(self, proxy: Proxy, test_url: str = "http://httpbin.org/ip") -> bool:
         """Check if a proxy is healthy."""
         try:
-            # Use a simple HTTP request to test proxy
-            test_url = "http://httpbin.org/ip"
-            
             proxy_config = proxy.to_playwright_config()
             
             # For health check, we'll use httpx with proxy
             proxy_url = proxy.url
             if proxy.username and proxy.password:
-                parsed = urlparse(proxy_url)
-                proxy_url = f"{parsed.scheme}://{proxy.username}:{proxy.password}@{parsed.netloc}"
+                proxy_url = proxy.to_httpx_proxy_url()
             
             async with httpx.AsyncClient(
                 proxies={proxy_config["server"]: proxy_url},
@@ -309,7 +435,7 @@ class ProxyPool:
             "rotation_strategy": self.rotation_strategy.value,
             "proxies": [
                 {
-                    "url": p.url,
+                    "url": p.masked_url(),
                     "type": p.proxy_type.value,
                     "healthy": p.is_healthy,
                     "usage_count": p.usage_count,
@@ -319,4 +445,3 @@ class ProxyPool:
                 for p in self.proxies
             ],
         }
-

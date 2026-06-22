@@ -102,6 +102,71 @@ Together, DeepSeek, Mistral, Fireworks, and standard OpenAI also work via `CRAWL
 | `CRAWLEMOON_ALLOW_DANGEROUS_JS` | `false` | Required for `execute_js` / `execute_cdp` / `deobfuscate_js` |
 | `CRAWLEMOON_JS_MAX_LENGTH` | `50000` | Length cap for JS payloads |
 | `CRAWLEMOON_JS_EXEC_TIMEOUT` | `10.0` | Per-script timeout (s) |
+| `CRAWLEMOON_PROXIES` | _unset_ | Comma/newline separated proxy entries |
+| `CRAWLEMOON_PROXIES_FILE` | _unset_ | Local file with one proxy per line |
+| `CRAWLEMOON_PROXY_SCHEME` | `http` | Scheme for entries without one: `http`, `https`, `socks4`, `socks5` |
+| `CRAWLEMOON_PROXY_ROTATION` | `round_robin` | `round_robin`, `random`, `sticky`, `least_used` |
+| `CRAWLEMOON_PROXY_HEALTH_CHECK_INTERVAL` | `300` | Proxy health-check interval (s) |
+| `CRAWLEMOON_PROXY_FAIL_CLOSED` | `false` | Raise on startup proxy config errors instead of continuing direct |
+
+---
+
+## Proxy, V2ray & connection control
+
+Crawlemoon uses one rotating proxy pool for browser contexts, `stealth_request`, and Xray/V2ray local exits. Credentials are stored separately from normalized URLs and are masked in stats/log-style responses.
+
+Supported proxy entry formats:
+
+```text
+http://user:pass@31.59.20.176:6754
+socks5://user:pass@127.0.0.1:1080
+31.59.20.176:6754:user:pass
+31.59.20.176:6754
+```
+
+Start the MCP server with a proxy file:
+
+```json
+{
+  "mcpServers": {
+    "crawlemoon": {
+      "command": "uvx",
+      "args": ["crawlemoon"],
+      "env": {
+        "CRAWLEMOON_PROXIES_FILE": "/secure/path/proxies.txt",
+        "CRAWLEMOON_PROXY_SCHEME": "http",
+        "CRAWLEMOON_PROXY_ROTATION": "sticky"
+      }
+    }
+  }
+}
+```
+
+Proxy files can use Webshare-style lines and comments:
+
+```text
+# host:port:username:password
+31.59.20.176:6754:uusmdewb:en3w097syrxh
+31.56.127.193:7684:uusmdewb:en3w097syrxh
+```
+
+Configure or replace proxies at runtime with the `configure_proxies` MCP tool:
+
+```json
+{
+  "proxies_text": "31.59.20.176:6754:user:pass\n31.56.127.193:7684:user:pass",
+  "default_scheme": "http",
+  "rotation_strategy": "sticky",
+  "health_check_interval": 300,
+  "replace_existing": true
+}
+```
+
+Use `add_proxy`, `remove_proxy`, `test_proxy`, and `get_proxy_stats` for incremental control. `get_proxy_stats` returns masked proxy URLs, for example `http://user:***@31.59.20.176:6754`.
+
+For V2ray/Xray, call `configure_xray_subscription` with either `subscription_url` or `raw_links`. Crawlemoon starts local SOCKS5 exits such as `socks5://127.0.0.1:10801`, registers them in the same proxy pool, and can rotate or benchmark nodes with `rotate_xray_node` and `test_xray_nodes`.
+
+Keep proxy files out of git. They contain live credentials.
 
 ---
 

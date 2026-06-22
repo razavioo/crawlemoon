@@ -13,7 +13,8 @@ from mcp.types import Tool, TextContent
 
 from ..core.browser.pool import BrowserPool
 from ..core.browser.stealth import create_stealth_context, apply_stealth_to_page
-from ..core.browser.proxy_pool import ProxyPool, RotationStrategy
+from ..core.browser.proxy_pool import ProxyPool, RotationStrategy, parse_proxy_source
+from ..core.http.proxy import set_http_proxy_pool
 from ..core.browser.xray import CrawlemoonV2rayManager
 from ..core.browser.cdp import CDPClient
 from ..core.rate_limiter import RateLimiter
@@ -56,21 +57,27 @@ config = MCPServerConfig.from_env()
 
 # Initialize proxy pool if configured
 _proxy_pool = None
-proxy_list = os.getenv("CRAWLEMOON_PROXIES")
-if proxy_list:
-    proxy_urls = [p.strip() for p in proxy_list.split(",") if p.strip()]
-    if proxy_urls:
-        rotation_strategy = os.getenv("CRAWLEMOON_PROXY_ROTATION", "round_robin")
+try:
+    proxy_entries = parse_proxy_source(config.proxies, proxies_file=config.proxies_file)
+    if proxy_entries:
         try:
-            strategy = RotationStrategy(rotation_strategy.lower())
+            strategy = RotationStrategy(config.proxy_rotation.lower())
         except ValueError:
             strategy = RotationStrategy.ROUND_ROBIN
-        
+
         _proxy_pool = ProxyPool(
-            proxies=proxy_urls,
             rotation_strategy=strategy,
+            health_check_interval=config.proxy_health_check_interval,
+            fail_closed=config.proxy_fail_closed,
         )
-        logger.info(f"Initialized proxy pool with {len(proxy_urls)} proxies")
+        for proxy_entry in proxy_entries:
+            _proxy_pool.add_proxy(proxy_entry, default_scheme=config.proxy_default_scheme)
+        set_http_proxy_pool(_proxy_pool)
+        logger.info("Initialized proxy pool with %d proxies", len(_proxy_pool.proxies))
+except Exception as proxy_init_error:
+    if config.proxy_fail_closed:
+        raise
+    logger.error("Failed to initialize proxy pool: %s", proxy_init_error, exc_info=True)
 
 # Initialize global instances
 browser_pool = BrowserPool(
@@ -396,14 +403,36 @@ async def list_tools() -> List[Tool]:
         ),
         Tool(
             name="configure_proxies",
-            description="Configure proxy pool with rotation strategies. Supports HTTP, HTTPS, SOCKS4, and SOCKS5 proxies.",
+            description="Configure proxy pool with flexible inputs, rotation strategies, and health checks. Supports URL and host:port:user:pass formats over HTTP, HTTPS, SOCKS4, and SOCKS5.",
             inputSchema={
                 "type": "object",
                 "properties": {
                     "proxies": {
                         "type": "array",
                         "items": {"type": "string"},
-                        "description": "List of proxy URLs (e.g., ['http://proxy1:8080', 'socks5://proxy2:1080'])"
+                        "description": "List of proxy URLs or host:port[:username:password] entries"
+                    },
+                    "proxies_text": {
+                        "type": "string",
+                        "description": "Newline or comma separated proxy entries"
+                    },
+                    "proxies_file": {
+                        "type": "string",
+                        "description": "Local file path containing one proxy per line"
+                    },
+                    "username": {
+                        "type": "string",
+                        "description": "Default username for host:port entries"
+                    },
+                    "password": {
+                        "type": "string",
+                        "description": "Default password for host:port entries"
+                    },
+                    "default_scheme": {
+                        "type": "string",
+                        "enum": ["http", "https", "socks4", "socks5"],
+                        "description": "Scheme for entries without one",
+                        "default": "http"
                     },
                     "rotation_strategy": {
                         "type": "string",
@@ -415,9 +444,18 @@ async def list_tools() -> List[Tool]:
                         "type": "number",
                         "description": "Health check interval in seconds (default: 300)",
                         "default": 300
+                    },
+                    "replace_existing": {
+                        "type": "boolean",
+                        "description": "Replace existing proxy pool instead of merging",
+                        "default": True
+                    },
+                    "fail_closed": {
+                        "type": "boolean",
+                        "description": "Return an error instead of falling back when proxy setup fails",
+                        "default": False
                     }
-                },
-                "required": ["proxies"]
+                }
             }
         ),
         Tool(
@@ -712,7 +750,7 @@ async def list_tools() -> List[Tool]:
                 "properties": {
                     "proxy_url": {
                         "type": "string",
-                        "description": "Proxy URL (e.g., http://proxy:8080, socks5://proxy:1080)"
+                        "description": "Proxy URL or host:port[:username:password]"
                     },
                     "username": {
                         "type": "string",
@@ -721,6 +759,12 @@ async def list_tools() -> List[Tool]:
                     "password": {
                         "type": "string",
                         "description": "Optional proxy password"
+                    },
+                    "default_scheme": {
+                        "type": "string",
+                        "enum": ["http", "https", "socks4", "socks5"],
+                        "description": "Scheme for entries without one",
+                        "default": "http"
                     }
                 },
                 "required": ["proxy_url"]
@@ -748,7 +792,26 @@ async def list_tools() -> List[Tool]:
                 "properties": {
                     "proxy_url": {
                         "type": "string",
-                        "description": "Proxy URL to test"
+                        "description": "Proxy URL or host:port[:username:password] to test"
+                    },
+                    "test_url": {
+                        "type": "string",
+                        "description": "URL to use for connectivity test",
+                        "default": "http://httpbin.org/ip"
+                    },
+                    "username": {
+                        "type": "string",
+                        "description": "Optional proxy username"
+                    },
+                    "password": {
+                        "type": "string",
+                        "description": "Optional proxy password"
+                    },
+                    "default_scheme": {
+                        "type": "string",
+                        "enum": ["http", "https", "socks4", "socks5"],
+                        "description": "Scheme for entries without one",
+                        "default": "http"
                     }
                 },
                 "required": ["proxy_url"]
@@ -1505,9 +1568,21 @@ async def handle_configure_proxies(arguments: Dict[str, Any]) -> Dict[str, Any]:
     """Handle configure_proxies tool."""
     global _proxy_pool
     
-    proxy_urls = arguments["proxies"]
+    proxy_entries = parse_proxy_source(
+        arguments.get("proxies"),
+        arguments.get("proxies_text"),
+        arguments.get("proxies_file"),
+    )
+    if not proxy_entries:
+        return {"error": "At least one proxy entry must be provided"}
+
     rotation_strategy_str = arguments.get("rotation_strategy", "round_robin")
     health_check_interval = arguments.get("health_check_interval", 300)
+    username = arguments.get("username")
+    password = arguments.get("password")
+    default_scheme = arguments.get("default_scheme", "http")
+    replace_existing = arguments.get("replace_existing", True)
+    fail_closed = arguments.get("fail_closed", False)
     
     try:
         strategy = RotationStrategy(rotation_strategy_str.lower())
@@ -1516,23 +1591,31 @@ async def handle_configure_proxies(arguments: Dict[str, Any]) -> Dict[str, Any]:
             "error": f"Invalid rotation strategy: {rotation_strategy_str}. Must be one of: round_robin, random, sticky, least_used"
         }
     
-    # Create new proxy pool
     new_proxy_pool = ProxyPool(
-        proxies=proxy_urls,
         rotation_strategy=strategy,
         health_check_interval=health_check_interval,
-    )
+        fail_closed=fail_closed,
+    ) if replace_existing or not _proxy_pool else _proxy_pool
+    new_proxy_pool.rotation_strategy = strategy
+    new_proxy_pool.health_check_interval = health_check_interval
+    new_proxy_pool.fail_closed = fail_closed
+    try:
+        for proxy_entry in proxy_entries:
+            new_proxy_pool.add_proxy(proxy_entry, username, password, default_scheme)
+    except ValueError as exc:
+        return {"error": str(exc)}
     
     # Update browser pool with new proxy pool
     browser_pool.set_proxy_pool(new_proxy_pool)
     _proxy_pool = new_proxy_pool
+    set_http_proxy_pool(_proxy_pool)
     
     # Run initial health check
     health_results = await _proxy_pool.health_check_all()
     
     return {
         "status": "configured",
-        "proxies_count": len(proxy_urls),
+        "proxies_count": len(_proxy_pool.proxies),
         "rotation_strategy": rotation_strategy_str,
         "health_check_interval": health_check_interval,
         "initial_health": health_results,
@@ -2879,8 +2962,17 @@ async def handle_stealth_request(arguments: Dict[str, Any]) -> Dict[str, Any]:
     data = arguments.get("data")
     
     try:
+        proxies = None
+        selected_proxy = None
+        if _proxy_pool:
+            from urllib.parse import urlparse
+
+            selected_proxy = await _proxy_pool.get_proxy(domain=urlparse(url).netloc)
+            if selected_proxy:
+                proxies = selected_proxy.to_curl_cffi_proxies()
+
         # Create stealth client
-        client = create_stealth_client(browser=browser)
+        client = create_stealth_client(browser=browser, proxies=proxies)
         
         # Make request
         if method == "GET":
@@ -2901,6 +2993,7 @@ async def handle_stealth_request(arguments: Dict[str, Any]) -> Dict[str, Any]:
             "headers": dict(response.headers),
             "content": response.text[:10000],  # Limit content size
             "content_length": len(response.text),
+            "proxy": selected_proxy.masked_url() if selected_proxy else None,
             "timestamp": datetime.now().isoformat(),
         }
     
@@ -3037,21 +3130,25 @@ async def handle_add_proxy(arguments: Dict[str, Any]) -> Dict[str, Any]:
     proxy_url = arguments["proxy_url"]
     username = arguments.get("username")
     password = arguments.get("password")
+    default_scheme = arguments.get("default_scheme", "http")
     
     try:
         if not _proxy_pool:
             # Create a new proxy pool if none exists
             _proxy_pool = ProxyPool(
-                proxies=[proxy_url],
                 rotation_strategy=RotationStrategy.ROUND_ROBIN,
             )
+            _proxy_pool.add_proxy(proxy_url, username, password, default_scheme)
             browser_pool.set_proxy_pool(_proxy_pool)
         else:
-            _proxy_pool.add_proxy(proxy_url, username, password)
+            _proxy_pool.add_proxy(proxy_url, username, password, default_scheme)
+        set_http_proxy_pool(_proxy_pool)
+
+        proxy = ProxyPool.normalize_proxy(proxy_url, username, password, default_scheme)
         
         return {
             "status": "added",
-            "proxy_url": proxy_url,
+            "proxy_url": proxy.masked_url(),
             "total_proxies": len(_proxy_pool.proxies) if _proxy_pool else 0,
             "timestamp": datetime.now().isoformat(),
         }
@@ -3087,35 +3184,23 @@ async def handle_remove_proxy(arguments: Dict[str, Any]) -> Dict[str, Any]:
 async def handle_test_proxy(arguments: Dict[str, Any]) -> Dict[str, Any]:
     """Handle test_proxy tool."""
     proxy_url = arguments["proxy_url"]
+    username = arguments.get("username")
+    password = arguments.get("password")
+    default_scheme = arguments.get("default_scheme", "http")
     
     try:
-        # Create a temporary proxy object for testing
-        from urllib.parse import urlparse
-        from ..core.browser.proxy_pool import Proxy, ProxyType
-        
-        parsed = urlparse(proxy_url)
-        scheme = parsed.scheme.lower()
-        
-        proxy_type = ProxyType.HTTP
-        if scheme == "https":
-            proxy_type = ProxyType.HTTPS
-        elif scheme == "socks4":
-            proxy_type = ProxyType.SOCKS4
-        elif scheme == "socks5":
-            proxy_type = ProxyType.SOCKS5
-        
-        proxy = Proxy(url=proxy_url, proxy_type=proxy_type)
+        proxy = ProxyPool.normalize_proxy(proxy_url, username, password, default_scheme)
         
         # Create temporary pool for testing
         temp_pool = ProxyPool(proxies=[], health_check_timeout=10.0)
         temp_pool.proxies.append(proxy)
         
-        is_healthy = await temp_pool.health_check(proxy)
+        is_healthy = await temp_pool.health_check(proxy, test_url=test_url)
         
         return {
-            "proxy_url": proxy_url,
+            "proxy_url": proxy.masked_url(),
             "healthy": is_healthy,
-            "proxy_type": proxy_type.value,
+            "proxy_type": proxy.proxy_type.value,
             "timestamp": datetime.now().isoformat(),
         }
     except Exception as e:
@@ -3211,6 +3296,7 @@ async def handle_configure_xray_subscription(arguments: Dict[str, Any]) -> Dict[
                 "message": "Failed to start Xray on any port."
             }
             
+        set_http_proxy_pool(_proxy_pool)
         return {
             "status": "success",
             "message": f"Successfully configured Xray proxy pool with {len(active_ports)} active ports.",

@@ -42,6 +42,7 @@ except ImportError:
         return decorator
 
 
+
 _SAFE_SCHEMES = {"http", "https"}
 
 
@@ -328,9 +329,10 @@ class StealthRequestArgs(_URLMixin):
 # ---------------------------------------------------------------------------
 
 class AddProxyArgs(BaseModel):
-    proxy_url: str = Field(..., description="Proxy URL (http/https/socks4/socks5)")
+    proxy_url: str = Field(..., description="Proxy URL or host:port[:username:password]")
     username: Optional[str] = Field(None)
     password: Optional[str] = Field(None)
+    default_scheme: Literal["http", "https", "socks4", "socks5"] = Field("http")
 
 
 class RemoveProxyArgs(BaseModel):
@@ -338,8 +340,11 @@ class RemoveProxyArgs(BaseModel):
 
 
 class TestProxyArgs(BaseModel):
-    proxy_url: str = Field(..., description="Proxy URL to test")
+    proxy_url: str = Field(..., description="Proxy URL or host:port[:username:password] to test")
     test_url: str = Field("http://httpbin.org/ip", description="URL to use for connectivity test")
+    username: Optional[str] = Field(None)
+    password: Optional[str] = Field(None)
+    default_scheme: Literal["http", "https", "socks4", "socks5"] = Field("http")
 
     @field_validator("test_url")
     @classmethod
@@ -348,17 +353,31 @@ class TestProxyArgs(BaseModel):
 
 
 class ConfigureProxiesArgs(BaseModel):
-    proxies: List[str] = Field(..., description="List of proxy URLs to configure")
+    proxies: Optional[List[str]] = Field(None, description="List of proxy URLs or host:port[:username:password] entries")
+    proxies_text: Optional[str] = Field(None, description="Newline/comma separated proxy entries")
+    proxies_file: Optional[str] = Field(None, description="Local file containing one proxy per line")
+    username: Optional[str] = Field(None, description="Default username for host:port entries")
+    password: Optional[str] = Field(None, description="Default password for host:port entries")
+    default_scheme: Literal["http", "https", "socks4", "socks5"] = Field("http")
     rotation_strategy: Literal["round_robin", "random", "sticky", "least_used"] = Field(
         "round_robin"
     )
+    health_check_interval: int = Field(300, gt=0)
+    replace_existing: bool = Field(True)
+    fail_closed: bool = Field(False)
 
-    @field_validator("proxies")
+    @field_validator("proxies", mode="after")
     @classmethod
-    def validate_proxies(cls, v: List[str]) -> List[str]:
-        if not v:
-            raise ValueError("At least one proxy URL is required")
+    def validate_proxies(cls, v: Optional[List[str]]) -> Optional[List[str]]:
+        if v is not None and not v:
+            raise ValueError("proxies cannot be an empty list")
         return v
+
+    @model_validator(mode="after")
+    def validate_proxy_source(self) -> "ConfigureProxiesArgs":
+        if not self.proxies and not self.proxies_text and not self.proxies_file:
+            raise ValueError("At least one of proxies, proxies_text, or proxies_file is required")
+        return self
 
 
 # ---------------------------------------------------------------------------

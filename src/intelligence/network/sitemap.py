@@ -7,6 +7,7 @@ from urllib.parse import urlparse
 from dataclasses import dataclass, field
 
 import httpx
+from ...core.http.proxy import httpx_proxy_kwargs
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +62,8 @@ class SitemapAnalyzer:
         analysis = SitemapAnalysis(sitemap_url=sitemap_url)
         
         try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
+            proxy_args = await httpx_proxy_kwargs(sitemap_url)
+            async with httpx.AsyncClient(timeout=30.0, **proxy_args) as client:
                 response = await client.get(sitemap_url)
                 response.raise_for_status()
                 content = response.text
@@ -142,7 +144,8 @@ class SitemapAnalyzer:
         analysis = RobotsAnalysis(robots_url=robots_url)
         
         try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
+            proxy_args = await httpx_proxy_kwargs(robots_url)
+            async with httpx.AsyncClient(timeout=30.0, **proxy_args) as client:
                 response = await client.get(robots_url)
                 response.raise_for_status()
                 content = response.text

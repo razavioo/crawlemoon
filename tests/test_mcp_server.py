@@ -2,6 +2,8 @@
 
 import pytest
 import json
+import sys
+import types
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from src.mcp.server import (
@@ -12,6 +14,9 @@ from src.mcp.server import (
     handle_discover_apis,
     handle_deobfuscate_js,
     handle_extract_from_js,
+    handle_configure_proxies,
+    handle_add_proxy,
+    handle_stealth_request,
     handle_stop_recording,
     handle_list_recordings,
     handle_get_recording_status,
@@ -304,6 +309,118 @@ async def test_handle_health_check():
     assert "storage" in result
     assert "config" in result
     assert result["status"] in ["healthy", "degraded", "unhealthy"]
+
+
+@pytest.mark.asyncio
+async def test_handle_configure_proxies_accepts_text_and_masks_credentials():
+    """Test flexible proxy configuration and masked stats."""
+    import src.mcp.server as server_module
+
+    original_proxy_pool = server_module._proxy_pool
+    try:
+        with patch.object(server_module.browser_pool, "set_proxy_pool") as mock_set_proxy_pool:
+            with patch("src.core.browser.proxy_pool.ProxyPool.health_check_all", new_callable=AsyncMock) as mock_health:
+                mock_health.return_value = {"http://user:***@31.59.20.176:6754": True}
+
+                result = await handle_configure_proxies({
+                    "proxies_text": "31.59.20.176:6754:user:pass\n31.56.127.193:7684:user:pass",
+                    "rotation_strategy": "sticky",
+                    "health_check_interval": 120,
+                })
+
+        assert result["status"] == "configured"
+        assert result["proxies_count"] == 2
+        assert result["rotation_strategy"] == "sticky"
+        assert server_module._proxy_pool.proxies[0].url == "http://31.59.20.176:6754"
+        assert server_module._proxy_pool.proxies[0].username == "user"
+        assert "pass" not in str(result["stats"])
+        mock_set_proxy_pool.assert_called_once()
+    finally:
+        server_module._proxy_pool = original_proxy_pool
+        server_module.browser_pool.set_proxy_pool(original_proxy_pool)
+
+
+@pytest.mark.asyncio
+async def test_handle_configure_proxies_merges_existing_when_requested():
+    """Test configure_proxies can merge into the current pool."""
+    import src.mcp.server as server_module
+    from src.core.browser.proxy_pool import ProxyPool
+
+    original_proxy_pool = server_module._proxy_pool
+    try:
+        existing_pool = ProxyPool(proxies=["existing.example.com:8000"])
+        server_module._proxy_pool = existing_pool
+
+        with patch.object(server_module.browser_pool, "set_proxy_pool"):
+            with patch("src.core.browser.proxy_pool.ProxyPool.health_check_all", new_callable=AsyncMock) as mock_health:
+                mock_health.return_value = {}
+                result = await handle_configure_proxies({
+                    "proxies": ["new.example.com:8001"],
+                    "replace_existing": False,
+                })
+
+        assert result["status"] == "configured"
+        assert len(server_module._proxy_pool.proxies) == 2
+        assert server_module._proxy_pool.proxies[0].url == "http://existing.example.com:8000"
+        assert server_module._proxy_pool.proxies[1].url == "http://new.example.com:8001"
+    finally:
+        server_module._proxy_pool = original_proxy_pool
+        server_module.browser_pool.set_proxy_pool(original_proxy_pool)
+
+
+@pytest.mark.asyncio
+async def test_handle_add_proxy_uses_normalizer_and_masks_response():
+    """Test add_proxy supports host:port:user:pass format."""
+    import src.mcp.server as server_module
+
+    original_proxy_pool = server_module._proxy_pool
+    try:
+        server_module._proxy_pool = None
+        with patch.object(server_module.browser_pool, "set_proxy_pool"):
+            result = await handle_add_proxy({
+                "proxy_url": "31.59.20.176:6754:user:secret",
+            })
+
+        assert result["status"] == "added"
+        assert result["proxy_url"] == "http://user:***@31.59.20.176:6754"
+        assert "secret" not in str(result)
+        assert server_module._proxy_pool.proxies[0].password == "secret"
+    finally:
+        server_module._proxy_pool = original_proxy_pool
+        server_module.browser_pool.set_proxy_pool(original_proxy_pool)
+
+
+@pytest.mark.asyncio
+async def test_handle_stealth_request_uses_proxy_pool():
+    """Test stealth_request passes selected proxy to curl_cffi client."""
+    import src.mcp.server as server_module
+    from src.core.browser.proxy_pool import ProxyPool
+
+    original_proxy_pool = server_module._proxy_pool
+    try:
+        server_module._proxy_pool = ProxyPool(proxies=["proxy.example.com:8000:user:secret"])
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.headers = {"content-type": "text/plain"}
+        mock_response.text = "ok"
+
+        mock_client = MagicMock()
+        mock_client.get.return_value = mock_response
+
+        mock_module = types.ModuleType("src.core.http.stealth_client")
+        mock_module.create_stealth_client = MagicMock(return_value=mock_client)
+        with patch.dict(sys.modules, {"src.core.http.stealth_client": mock_module}):
+            result = await handle_stealth_request({"url": "https://example.com"})
+
+        assert result["status_code"] == 200
+        assert result["proxy"] == "http://user:***@proxy.example.com:8000"
+        assert mock_module.create_stealth_client.call_args.kwargs["proxies"] == {
+            "http": "http://user:secret@proxy.example.com:8000",
+            "https": "http://user:secret@proxy.example.com:8000",
+        }
+    finally:
+        server_module._proxy_pool = original_proxy_pool
+        server_module.browser_pool.set_proxy_pool(original_proxy_pool)
 
 
 @pytest.mark.asyncio
