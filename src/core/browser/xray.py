@@ -25,7 +25,6 @@ import asyncio
 logger = logging.getLogger(__name__)
 
 # Constants for storage
-
 def _get_app_data_dir() -> str:
     """Return a cross-platform directory for Crawlemoon runtime data."""
     if app_data_dir := os.environ.get("CRAWLEMOON_APP_DATA_DIR"):
@@ -121,17 +120,40 @@ class XrayBinaryManager:
         machine = platform.machine().lower()
 
         if system == "darwin":
-            if "arm" in machine or "aarch64" in machine:
-                filename = "Xray-macos-arm64.zip"
-            else:
+            if machine in {"arm64", "aarch64"}:
+                filename = "Xray-macos-arm64-v8a.zip"
+            elif machine in {"x86_64", "amd64"}:
                 filename = "Xray-macos-64.zip"
-        elif system == "linux":
-            if "arm" in machine or "aarch64" in machine:
-                filename = "Xray-linux-arm64.zip"
             else:
+                raise NotImplementedError(f"Unsupported macOS architecture: {machine}")
+        elif system == "linux":
+            if machine in {"x86_64", "amd64"}:
                 filename = "Xray-linux-64.zip"
+            elif machine in {"i386", "i686", "x86"}:
+                filename = "Xray-linux-32.zip"
+            elif machine in {"aarch64", "arm64"}:
+                filename = "Xray-linux-arm64-v8a.zip"
+            elif machine.startswith("armv7") or machine in {"armv7l", "armv7"}:
+                filename = "Xray-linux-arm32-v7a.zip"
+            elif machine.startswith("armv6") or machine in {"armv6l", "armv6"}:
+                filename = "Xray-linux-arm32-v6.zip"
+            elif machine.startswith("arm"):
+                filename = "Xray-linux-arm32-v7a.zip"
+            elif machine in {"mips64", "mips64el"}:
+                filename = f"Xray-linux-{machine}.zip"
+            elif machine in {"s390x", "riscv64", "loong64"}:
+                filename = f"Xray-linux-{machine}.zip"
+            else:
+                raise NotImplementedError(f"Unsupported Linux architecture: {machine}")
         elif system == "windows":
-            filename = "Xray-windows-64.zip"
+            if machine in {"amd64", "x86_64"}:
+                filename = "Xray-windows-64.zip"
+            elif machine in {"arm64", "aarch64"}:
+                filename = "Xray-windows-arm64-v8a.zip"
+            elif machine in {"x86", "i386", "i686"}:
+                filename = "Xray-windows-32.zip"
+            else:
+                raise NotImplementedError(f"Unsupported Windows architecture: {machine}")
         else:
             raise NotImplementedError(f"Unsupported operating system: {system}")
 
@@ -140,9 +162,8 @@ class XrayBinaryManager:
 
         logger.info("Downloading Xray-Core v%s from: %s", cls.VERSION, url)
         try:
-            # Custom User-Agent to bypass potential blockings
-            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"})
-            with urllib.request.urlopen(req) as response, open(zip_path, "wb") as out_file:
+            req = urllib.request.Request(url, headers={"User-Agent": "crawlemoon"})
+            with urllib.request.urlopen(req, timeout=60) as response, open(zip_path, "wb") as out_file:
                 out_file.write(response.read())
 
             logger.info("Extracting Xray-Core zip...")
@@ -318,7 +339,7 @@ class XrayConfigGenerator:
                 decoded = base64.b64decode(raw_b64).decode("utf-8", errors="ignore")
                 # method:password@host:port
                 if "@" in decoded:
-                    auth, server = decoded.split("@", 1)
+                    auth = decoded.split("@", 1)[0]
                     if ":" in auth:
                         params["method"], params["password"] = auth.split(":", 1)
             except Exception:
@@ -384,6 +405,8 @@ class XrayConfigGenerator:
             # Stream settings (WS / TLS)
             stream_settings = {}
             network = node.params.get("net", "tcp")
+            if network.lower() in ["raw", "none", "standard"]:
+                network = "tcp"
             security = node.params.get("tls", "none")
             
             stream_settings["network"] = network
@@ -440,6 +463,8 @@ class XrayConfigGenerator:
             # Stream settings
             stream_settings = {}
             network = node.params.get("type", "tcp")
+            if network.lower() in ["raw", "none", "standard"]:
+                network = "tcp"
             security = node.params.get("security", "none")
             
             stream_settings["network"] = network
@@ -490,6 +515,8 @@ class XrayConfigGenerator:
             # Stream settings
             stream_settings = {}
             network = node.params.get("type", "tcp")
+            if network.lower() in ["raw", "none", "standard"]:
+                network = "tcp"
             security = node.params.get("security", "tls")  # Trojan defaults to TLS
             
             stream_settings["network"] = network
@@ -805,9 +832,17 @@ class CrawlemoonV2rayManager:
             proxy_url = f"socks5://127.0.0.1:{temp_port}"
             start_time = time.perf_counter()
             
-            async with httpx.AsyncClient(proxies=proxy_url, timeout=5.0) as client:
-                res = await client.get(test_url)
-                if res.status_code == 200:
+            # Support newer httpx versions which use 'proxy' instead of 'proxies'
+            try:
+                client_kwargs = {"proxy": proxy_url}
+                client = httpx.AsyncClient(timeout=5.0, **client_kwargs)
+            except TypeError:
+                client = httpx.AsyncClient(proxies=proxy_url, timeout=5.0)
+                
+            async with client:
+                headers = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"}
+                res = await client.get(test_url, headers=headers, follow_redirects=True)
+                if 200 <= res.status_code < 400:
                     latency = (time.perf_counter() - start_time) * 1000.0
                     node.latency = latency
                     node.is_healthy = True
@@ -843,7 +878,7 @@ class CrawlemoonV2rayManager:
                 return node.name, latency
 
         tasks = [worker(i, node) for i, node in enumerate(self.nodes)]
-        results = await asyncio.gather(*tasks, return_exceptions=True)
+        await asyncio.gather(*tasks, return_exceptions=True)
 
         # Sort nodes list by working status and latency (lowest first)
         working_nodes = [n for n in self.nodes if n.is_healthy and n.latency > 0]
